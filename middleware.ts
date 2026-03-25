@@ -17,7 +17,6 @@ const ROTAS_ROLE: Record<string, string> = {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Deixa rotas públicas passarem
   if (PUBLICAS.some(r => pathname === r || pathname.startsWith(r + '/'))) {
     return NextResponse.next()
   }
@@ -29,39 +28,34 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name)           { return request.cookies.get(name)?.value },
-        set(name, val, opt) { response.cookies.set({ name, value: val, ...opt }) },
-        remove(name, opt)   { response.cookies.set({ name, value: '', ...opt }) },
+        get(name: string)                         { return request.cookies.get(name)?.value },
+        set(name: string, val: string, opt: any)  { response.cookies.set({ name, value: val, ...opt }) },
+        remove(name: string, opt: any)            { response.cookies.set({ name, value: '', ...opt }) },
       },
     }
   )
 
   const { data: { session } } = await supabase.auth.getSession()
 
-  // Sem sessão → login
   if (!session) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Busca role do perfil
   const { data: perfil } = await supabase
     .from('perfis')
     .select('role, bloqueado')
     .eq('id', session.user.id)
     .single()
 
-  // Sem perfil → logout e login
   if (!perfil) {
     await supabase.auth.signOut()
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Bloqueado
   if (perfil.bloqueado) {
     return NextResponse.redirect(new URL('/bloqueado', request.url))
   }
 
-  // Verifica se a rota bate com o role
   const roleEsperado = Object.entries(ROTAS_ROLE).find(([rota]) =>
     pathname.startsWith(rota)
   )?.[1]
