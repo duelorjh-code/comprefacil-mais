@@ -15,6 +15,14 @@ export interface Perfil {
 // ── helpers ────────────────────────────────────────────────────
 export function limparTelefone(v: string) { return v.replace(/\D/g, '') }
 
+export function formatTelefone(v: string): string {
+  const nums = limparTelefone(v)
+  if (nums.length <= 10) {
+    return nums.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3')
+  }
+  return nums.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')
+}
+
 export function redirecionarPorRole(role: UserRole): string {
   const mapa: Record<UserRole, string> = {
     admin:      '/admin',
