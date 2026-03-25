@@ -197,10 +197,10 @@ export default function AdminParceiros() {
 
             <form onSubmit={cadastrar} style={s.form}>
               <div style={s.grid2}>
-                <Campo label="Nome completo *" valor={form.nome_completo} onChange={v => set('nome_completo',v)} />
-                <Campo label="Nome fantasia *"  valor={form.nome_fantasia}  onChange={v => set('nome_fantasia',v)} />
-                <Campo label="CPF / CNPJ *"     valor={form.cnpj_cpf}       onChange={v => set('cnpj_cpf',v)} />
-                <Campo label="Celular com DDD *" valor={form.telefone}       onChange={v => set('telefone',v)} placeholder="(67) 99999-0000" />
+                <Campo label="Nome completo *" valor={form.nome_completo} onChange={(v: string) => set('nome_completo',v)} />
+                <Campo label="Nome fantasia *"  valor={form.nome_fantasia}  onChange={(v: string) => set('nome_fantasia',v)} />
+                <Campo label="CPF / CNPJ *"     valor={form.cnpj_cpf}       onChange={(v: string) => set('cnpj_cpf',v)} />
+                <Campo label="Celular com DDD *" valor={form.telefone}       onChange={(v: string) => set('telefone',v)} placeholder="(67) 99999-0000" />
               </div>
 
               <div style={s.secao}>Endereço</div>
@@ -214,27 +214,27 @@ export default function AdminParceiros() {
                     {loadingCep && <span style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', fontSize:12, color:TEXTO_MEIO }}>...</span>}
                   </div>
                 </div>
-                <Campo label="Número *"      valor={form.numero}    onChange={v => set('numero',v)} style={{ gridColumn:'span 1' }} />
-                <Campo label="Complemento"   valor={form.complemento} onChange={v => set('complemento',v)} style={{ gridColumn:'span 1' }} />
+                <Campo label="Número *"      valor={form.numero}    onChange={(v: string) => set('numero',v)} style={{ gridColumn:'span 1' }} />
+                <Campo label="Complemento"   valor={form.complemento} onChange={(v: string) => set('complemento',v)} style={{ gridColumn:'span 1' }} />
               </div>
               <div style={s.grid2}>
-                <Campo label="Endereço *"   valor={form.endereco} onChange={v => set('endereco',v)} />
-                <Campo label="Bairro"       valor={form.bairro}   onChange={v => set('bairro',v)} />
-                <Campo label="Cidade"       valor={form.cidade}   onChange={v => set('cidade',v)} />
-                <Campo label="Estado (UF)"  valor={form.estado}   onChange={v => set('estado',v)} placeholder="MS" maxLength={2} />
+                <Campo label="Endereço *"   valor={form.endereco} onChange={(v: string) => set('endereco',v)} />
+                <Campo label="Bairro"       valor={form.bairro}   onChange={(v: string) => set('bairro',v)} />
+                <Campo label="Cidade"       valor={form.cidade}   onChange={(v: string) => set('cidade',v)} />
+                <Campo label="Estado (UF)"  valor={form.estado}   onChange={(v: string) => set('estado',v)} placeholder="MS" maxLength={2} />
               </div>
 
               <div style={s.secao}>PIX & Horário</div>
               <div style={s.grid2}>
-                <Campo label="Chave PIX"    valor={form.pix_chave} onChange={v => set('pix_chave',v)} />
+                <Campo label="Chave PIX"    valor={form.pix_chave} onChange={(v: string) => set('pix_chave',v)} />
                 <div style={s.campoWrap}>
                   <label style={s.label}>Tipo da chave</label>
                   <select style={s.input} value={form.pix_tipo} onChange={e => set('pix_tipo',e.target.value)}>
                     {['cpf','cnpj','telefone','email','aleatoria'].map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
-                <Campo label="Abertura"     valor={form.horario_abertura}    onChange={v => set('horario_abertura',v)}   type="time" />
-                <Campo label="Fechamento"   valor={form.horario_fechamento}   onChange={v => set('horario_fechamento',v)} type="time" />
+                <Campo label="Abertura"     valor={form.horario_abertura}    onChange={(v: string) => set('horario_abertura',v)}   type="time" />
+                <Campo label="Fechamento"   valor={form.horario_fechamento}   onChange={(v: string) => set('horario_fechamento',v)} type="time" />
               </div>
 
               <div style={s.secao}>Documento</div>
@@ -263,7 +263,10 @@ export default function AdminParceiros() {
   )
 }
 
-function Campo({ label, valor, onChange, placeholder='', type='text', style={}, maxLength=undefined }: any) {
+function Campo({ label, valor, onChange, placeholder='', type='text', style={}, maxLength=undefined }: {
+  label: string; valor: string; onChange: (v: string) => void;
+  placeholder?: string; type?: string; style?: React.CSSProperties; maxLength?: number;
+}) {
   return (
     <div style={{ ...{ display:'flex', flexDirection:'column', gap:5 }, ...style }}>
       <label style={{ fontSize:12, fontWeight:700, color: TEXTO }}>{label}</label>
