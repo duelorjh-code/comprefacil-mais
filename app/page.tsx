@@ -26,7 +26,7 @@ export default function HomePage() {
       <div style={s.orb2} />
 
       <div style={s.card}>
-        <img src="logo.png" alt="CompreFácil+" style={s.logo} />
+        <img src="/logo.png" alt="CompreFácil+" style={s.logo} />
 
         <p style={s.slogan}>
           Sua conveniência,{' '}
@@ -102,10 +102,8 @@ const s: Record<string, React.CSSProperties> = {
   },
   logo: {
     width: '100%',
-    maxWidth: 260,
+    maxWidth: 220,
     objectFit: 'contain',
-    filter: 'brightness(0) invert(1)',
-    mixBlendMode: 'screen',
   },
   slogan: {
     color: 'rgba(255,255,255,0.75)',
