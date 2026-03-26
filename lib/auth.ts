@@ -44,7 +44,7 @@ export async function login(telefone: string, senha: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha })
 
   if (error || !data.user) {
-    return { sucesso: false, erro: 'Telefone ou senha incorretos.' }
+    return { sucesso: false, erro: error?.message || 'Telefone ou senha incorretos.' }
   }
 
   const { data: perfil, error: errPerfil } = await supabase
@@ -169,6 +169,37 @@ export async function cadastrarEntregador(dados: {
   })
 
   if (errEnt) return { sucesso: false, erro: errEnt.message }
+
+  return { sucesso: true }
+}
+
+// ── primeiro acesso parceiro ───────────────────────────────────
+export async function primeiroAcessoParceiro(telefone: string, senha: string) {
+  const tel   = limparTelefone(telefone)
+  const email = telefoneParaEmail(tel)
+
+  const { data: perfil } = await supabase
+    .from('perfis')
+    .select('id, role, primeiro_acesso')
+    .eq('telefone', tel)
+    .eq('role', 'parceiro')
+    .single()
+
+  if (!perfil) return { sucesso: false, erro: 'Telefone não encontrado ou não é parceiro.' }
+  if (!perfil.primeiro_acesso) return { sucesso: false, erro: 'Senha já foi definida. Use o login normal.' }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password: 'cfm_primeiro_acesso_2024',
+  })
+
+  if (error) return { sucesso: false, erro: 'Erro de validação. Contate o Admin.' }
+
+  const { error: errSenha } = await supabase.auth.updateUser({ password: senha })
+  if (errSenha) return { sucesso: false, erro: 'Erro ao definir senha.' }
+
+  await supabase.from('perfis').update({ primeiro_acesso: false }).eq('id', perfil.id)
+  await supabase.auth.signOut()
 
   return { sucesso: true }
 }
