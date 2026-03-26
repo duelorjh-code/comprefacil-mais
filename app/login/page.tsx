@@ -21,14 +21,16 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErro('')
+
     const tel = limparTelefone(telefone)
+    const email = tel + '@cfm.app' // 🔥 CORREÇÃO AQUI
 
     if (tel.length < 10) return setErro('Telefone inválido. Inclua o DDD.')
     if (senha.length !== 6) return setErro('A senha deve ter exatamente 6 dígitos.')
     if (tentativas >= 5) return setErro('Muitas tentativas. Fale com o suporte via WhatsApp.')
 
     setLoading(true)
-    const result = await login(tel, senha)
+    const result = await login(email, senha) // 🔥 CORREÇÃO AQUI
     setLoading(false)
 
     if (!result.sucesso) {
@@ -47,7 +49,6 @@ export default function LoginPage() {
       <div style={s.orb} />
 
       <div style={s.card} className="anim-fadeUp">
-        {/* Logo */}
         <div style={s.logoWrap}>
           <img src="/logo.png" alt="CompreFácil+" style={s.logo} />
         </div>
@@ -58,7 +59,6 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} style={s.form}>
-          {/* Telefone */}
           <div style={s.campo}>
             <label style={s.label}>Telefone com DDD</label>
             <div style={s.inputWrap}>
@@ -75,7 +75,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Senha */}
           <div style={s.campo}>
             <label style={s.label}>Senha (6 dígitos)</label>
             <div style={s.inputWrap}>
@@ -96,10 +95,8 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Erro */}
           {erro && <p style={s.erro}>{erro}</p>}
 
-          {/* Botão */}
           <button type="submit" disabled={loading} style={{ ...s.btnEnviar, opacity: loading ? 0.7 : 1 }}>
             {loading
               ? <span style={s.spinner} className="anim-spin" />
@@ -108,7 +105,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Links */}
         <div style={s.links}>
           <p style={s.linkText}>
             Não tem conta?{' '}
@@ -168,40 +164,35 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 10,
     border: `1.5px solid ${CINZA_BORDA}`, borderRadius: 12,
     padding: '0 14px', background: '#FAFBFE',
-    transition: 'border-color 0.2s',
   },
-  icone: { fontSize: 16, flexShrink: 0 },
+  icone: { fontSize: 16 },
   input: {
     flex: 1, border: 'none', background: 'transparent',
     padding: '13px 0', fontSize: 15, color: TEXTO, outline: 'none',
   },
   eyeBtn: {
-    background: 'none', border: 'none', padding: 0,
-    fontSize: 16, cursor: 'pointer', flexShrink: 0,
+    background: 'none', border: 'none',
+    fontSize: 16, cursor: 'pointer',
   },
   erro: {
     fontSize: 13, color: '#EF4444', fontWeight: 600,
     background: '#FFF1F1', borderRadius: 10, padding: '10px 14px',
-    border: '1px solid #FEE2E2',
   },
   btnEnviar: {
     width: '100%', padding: '15px', background: AZUL,
     color: '#fff', border: 'none', borderRadius: 12,
-    fontSize: 15, fontWeight: 800, display: 'flex',
-    alignItems: 'center', justifyContent: 'center', gap: 8,
-    transition: 'opacity 0.2s',
+    fontSize: 15, fontWeight: 800,
   },
   spinner: {
     width: 20, height: 20, borderRadius: '50%',
     border: '3px solid rgba(255,255,255,0.3)',
-    borderTopColor: '#fff', display: 'inline-block',
+    borderTopColor: '#fff',
   },
   links: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' },
-  linkText: { fontSize: 13, color: TEXTO_MEIO, textAlign: 'center' as const },
+  linkText: { fontSize: 13, color: TEXTO_MEIO },
   linkBtn: {
     background: 'none', border: 'none', color: DOURADO,
     fontWeight: 700, fontSize: 13, cursor: 'pointer',
-    textDecoration: 'none', fontFamily: 'inherit',
   },
-  rodape: { position: 'fixed', bottom: 16, color: '#aaa', fontSize: 11, zIndex: 1, textAlign: 'center' as const },
+  rodape: { position: 'fixed', bottom: 16, color: '#aaa', fontSize: 11 },
 }

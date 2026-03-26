@@ -69,7 +69,7 @@ Após executar o SQL, no Supabase → Authentication → Users:
 
 Depois execute no SQL Editor:
 ```sql
-UPDATE perfis SET role = 'admin' WHERE telefone = '67900000000';
+DATE perfis SET role = 'admin' UPWHERE telefone = '67900000000';
 ```
 
 ### 3. Storage
