@@ -26,7 +26,7 @@ export default function HomePage() {
       <div style={s.orb2} />
 
       <div style={s.card}>
-        <img src="/public/logo.png" alt="CompreFácil+" style={s.logo} />
+        <img src="/logo.png" alt="CompreFácil+" style={s.logo} />
 
         <p style={s.slogan}>
           Sua conveniência,{' '}
