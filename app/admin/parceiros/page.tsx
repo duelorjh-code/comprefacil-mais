@@ -70,23 +70,23 @@ export default function AdminParceiros() {
       if (gd[0]) { lat = parseFloat(gd[0].lat); lng = parseFloat(gd[0].lon) }
     } catch {}
 
-    // Criar usuário Auth com senha temporária
+    // Criar usuário Auth via API route (usa service role, não faz logout do admin)
     const tel   = form.telefone.replace(/\D/g,'')
     const email = `${tel}@cfm.app`
-    const { data: authData, error: authErr } = await supabase.auth.admin
-      ? (await (await fetch('/api/auth/cadastro', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password: 'cfm_primeiro_acesso_2024', role: 'parceiro', nome: form.nome_completo, telefone: tel }),
-        })).json())
-      : { data: null, error: new Error('admin não disponível') }
 
-    // Fallback: signup normal
-    const { data: signupData, error: signupErr } = await supabase.auth.signUp({
-      email, password: 'cfm_primeiro_acesso_2024',
+    const apiRes = await fetch('/api/auth/cadastro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'cfm_primeiro_acesso_2024', role: 'parceiro', nome: form.nome_completo.trim(), telefone: tel }),
     })
+    const apiData = await apiRes.json()
 
-    const userId = signupData?.user?.id
+    if (!apiRes.ok || apiData.error) {
+      setLoading(false)
+      return setErro(apiData.error ?? 'Erro ao criar acesso.')
+    }
+
+    const userId = apiData.data?.user?.id
     if (!userId) { setLoading(false); return setErro('Erro ao criar acesso. Tente novamente.') }
 
     // Upload documento
@@ -98,12 +98,6 @@ export default function AdminParceiros() {
       const { data: u } = supabase.storage.from('documentos').getPublicUrl(path)
       docUrl = u.publicUrl
     }
-
-    // Criar perfil
-    await supabase.from('perfis').insert({
-      id: userId, telefone: tel,
-      nome: form.nome_completo.trim(), role: 'parceiro', primeiro_acesso: true,
-    })
 
     // Criar parceiro
     const { error: errParceiro } = await supabase.from('parceiros').insert({
