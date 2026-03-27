@@ -18,6 +18,29 @@ export default function AdminEstoque() {
   const [salvando, setSalvando]     = useState(false)
   const [busca, setBusca]           = useState('')
 
+  function fmtPreco(val: number) {
+    if (!val) return ''
+    return val.toFixed(2).replace('.', ',')
+  }
+
+  function handlePreco(prodId: string, raw: string) {
+    // Remove tudo exceto dígitos
+    const digits = raw.replace(/\D/g, '')
+    // Converte centavos para reais
+    const valor = digits ? parseInt(digits) / 100 : 0
+    const atual = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
+    const prev  = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
+    setAlterados(a => ({ ...a, [prodId]: { ...prev, preco: valor } }))
+  }
+
+  function handleQtd(prodId: string, raw: string) {
+    const digits = raw.replace(/\D/g, '')
+    const valor  = digits ? parseInt(digits) : 0
+    const atual  = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
+    const prev   = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
+    setAlterados(a => ({ ...a, [prodId]: { ...prev, quantidade: valor } }))
+  }
+
   useEffect(() => { carregarParceiros() }, [])
   useEffect(() => { if (parcId) carregarEstoque() }, [parcId])
 
@@ -49,7 +72,7 @@ export default function AdminEstoque() {
     setProdutos(prods ?? [])
 
     const { data: est } = await supabase.from('estoque')
-      .select('id, produto_id, preco, quantidade')
+      .select('id, produto_id, preco, quantidade, status_aprovacao')
       .eq('parceiro_id', parcId)
 
     const map: Record<string, { id:string, preco:number, quantidade:number }> = {}
@@ -61,9 +84,10 @@ export default function AdminEstoque() {
   function atualizar(prodId: string, campo: 'preco'|'quantidade', valor: string) {
     const atual = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
     const prev  = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
+    const valorLimpo = valor.replace(',', '.')
     setAlterados(a => ({
       ...a,
-      [prodId]: { ...prev, [campo]: campo==='preco' ? parseFloat(valor)||0 : parseInt(valor)||0 }
+      [prodId]: { ...prev, [campo]: campo==='preco' ? parseFloat(valorLimpo)||0 : parseInt(valorLimpo)||0 }
     }))
   }
 
@@ -78,11 +102,13 @@ export default function AdminEstoque() {
     await Promise.all(Object.entries(alterados).map(async ([prodId, vals]) => {
       const item = estoque[prodId]
       if (item?.id) {
-        await supabase.from('estoque').update({ preco: vals.preco, quantidade: vals.quantidade }).eq('id', item.id)
+        await supabase.from('estoque').update({
+          preco: vals.preco, quantidade: vals.quantidade, status_aprovacao: 'aprovado'
+        }).eq('id', item.id)
       } else {
         const { data: novoEst } = await supabase.from('estoque').insert({
           parceiro_id: parcId, produto_id: prodId,
-          preco: vals.preco, quantidade: vals.quantidade, ativo: true,
+          preco: vals.preco, quantidade: vals.quantidade, ativo: true, status_aprovacao: 'aprovado',
         }).select('id, produto_id, preco, quantidade').single()
         if (novoEst) setEstoque(prev => ({ ...prev, [prodId]: novoEst }))
       }
@@ -110,6 +136,25 @@ export default function AdminEstoque() {
       </div>
 
       {/* Seletor de parceiro */}
+      {/* Pendentes do parceiro selecionado */}
+      {(() => {
+        const pendentes = produtos.filter(p => {
+          const e = estoque[p.id]
+          return e && (e as any).status_aprovacao === 'pendente'
+        })
+        return pendentes.length > 0 ? (
+          <div style={s.alertaPendente}>
+            <span>⏳ {pendentes.length} item(ns) aguardando aprovação</span>
+            <button onClick={async () => {
+              await Promise.all(pendentes.map(p =>
+                supabase.from('estoque').update({ status_aprovacao: 'aprovado' }).eq('id', (estoque[p.id] as any).id)
+              ))
+              carregarEstoque()
+            }} style={s.btnAprovar}>✅ Aprovar tudo</button>
+          </div>
+        ) : null
+      })()}
+
       <div style={s.parceirosAbas}>
         {parceiros.map(p => (
           <button key={p.id} onClick={() => setParcId(p.id)}
@@ -166,7 +211,7 @@ export default function AdminEstoque() {
                 {/* Preço */}
                 <div style={{ width:110 }}>
                   <input type="number" min="0" step="0.01"
-                    value={preco || ''}
+                    value={preco ? preco.toFixed(2).replace('.', ',') : ''}
                     onChange={e => atualizar(p.id, 'preco', e.target.value)}
                     placeholder="0,00"
                     style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA }} />
@@ -174,9 +219,9 @@ export default function AdminEstoque() {
 
                 {/* Quantidade */}
                 <div style={{ width:90 }}>
-                  <input type="number" min="0" step="1"
+                  <input type="text" inputMode="numeric"
                     value={qtd || ''}
-                    onChange={e => atualizar(p.id, 'quantidade', e.target.value)}
+                    onChange={e => handleQtd(p.id, e.target.value)}
                     placeholder="0"
                     style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA,
                       color: qtd===0 ? TEXTO_MEIO : qtd<=5 ? LARANJA : VERDE }} />
@@ -227,6 +272,8 @@ const s: Record<string, React.CSSProperties> = {
   busca: { border:`1.5px solid ${CINZA_BORDA}`, borderRadius:10, padding:'10px 14px', fontSize:14, background:'#fff', outline:'none', fontFamily:'inherit', color:TEXTO },
   loading: { display:'flex', justifyContent:'center', padding:60 },
   spinner: { width:28, height:28, borderRadius:'50%', border:`3px solid ${AZUL}30`, borderTopColor:AZUL, display:'block' },
+  alertaPendente: { display:'flex', alignItems:'center', justifyContent:'space-between', background:'#FFFBEB', border:'1.5px solid #FCD34D', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:600, color:'#92400E' },
+  btnAprovar: { background:VERDE, color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit' },
   tabelaWrap: { background:'#fff', borderRadius:14, overflow:'hidden', boxShadow:'0 1px 8px rgba(27,47,94,0.06)', border:`1px solid ${CINZA_BORDA}` },
   thead: { display:'flex', alignItems:'center', gap:12, padding:'10px 16px', background:'#F4F6FB', borderBottom:`1px solid ${CINZA_BORDA}`, fontSize:11, fontWeight:800, color:TEXTO_MEIO, textTransform:'uppercase' as const, letterSpacing:'0.05em' },
   linha: { display:'flex', alignItems:'center', gap:12, padding:'10px 16px', borderBottom:`1px solid ${CINZA_BORDA}`, transition:'background 0.2s' },

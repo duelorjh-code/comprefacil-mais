@@ -16,6 +16,27 @@ export default function ParceiroEstoque() {
   const [busca, setBusca]         = useState('')
   const [filtro, setFiltro]       = useState<'todos'|'com_estoque'>('todos')
 
+  function fmtPreco(val: number) {
+    if (!val) return ''
+    return val.toFixed(2).replace('.', ',')
+  }
+
+  function handlePreco(prodId: string, raw: string) {
+    const digits = raw.replace(/\D/g, '')
+    const valor  = digits ? parseInt(digits) / 100 : 0
+    const atual  = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
+    const prev   = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
+    setAlterados(a => ({ ...a, [prodId]: { ...prev, preco: valor } }))
+  }
+
+  function handleQtd(prodId: string, raw: string) {
+    const digits = raw.replace(/\D/g, '')
+    const valor  = digits ? parseInt(digits) : 0
+    const atual  = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
+    const prev   = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
+    setAlterados(a => ({ ...a, [prodId]: { ...prev, quantidade: valor } }))
+  }
+
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
@@ -43,9 +64,10 @@ export default function ParceiroEstoque() {
   function atualizar(prodId: string, campo: 'preco'|'quantidade', valor: string) {
     const atual = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
     const prev  = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
+    const valorLimpo = valor.replace(',', '.')
     setAlterados(a => ({
       ...a,
-      [prodId]: { ...prev, [campo]: campo==='preco' ? parseFloat(valor)||0 : parseInt(valor)||0 }
+      [prodId]: { ...prev, [campo]: campo==='preco' ? parseFloat(valorLimpo)||0 : parseInt(valorLimpo)||0 }
     }))
   }
 
@@ -54,23 +76,27 @@ export default function ParceiroEstoque() {
     return estoque[prodId]?.[campo] ?? 0
   }
 
+  const [salvoMsg, setSalvoMsg] = useState('')
+
   async function salvarTudo() {
     if (Object.keys(alterados).length === 0) return
     setSalvando(true)
     await Promise.all(Object.entries(alterados).map(async ([prodId, vals]) => {
       const item = estoque[prodId]
       if (item?.id) {
-        await supabase.from('estoque').update({ preco: vals.preco, quantidade: vals.quantidade }).eq('id', item.id)
+        await supabase.from('estoque').update({ preco: vals.preco, quantidade: vals.quantidade, status_aprovacao: 'pendente' }).eq('id', item.id)
       } else if (vals.preco > 0 || vals.quantidade > 0) {
         const { data: novo } = await supabase.from('estoque').insert({
           parceiro_id: parcId, produto_id: prodId,
-          preco: vals.preco, quantidade: vals.quantidade, ativo: true,
+          preco: vals.preco, quantidade: vals.quantidade, ativo: true, status_aprovacao: 'pendente',
         }).select('id, produto_id, preco, quantidade').single()
         if (novo) setEstoque(prev => ({ ...prev, [prodId]: novo }))
       }
     }))
     setAlterados({})
     setSalvando(false)
+    setSalvoMsg('✅ Enviado para aprovação do Admin!')
+    setTimeout(() => setSalvoMsg(''), 4000)
     carregar()
   }
 
@@ -104,6 +130,12 @@ export default function ParceiroEstoque() {
       <div style={s.aviso}>
         📋 Foto, nome e categoria são controlados pelo Admin. Preencha apenas <strong>preço</strong> e <strong>quantidade</strong>. Produtos com preço ou quantidade zero não aparecem na vitrine.
       </div>
+
+      {salvoMsg && (
+        <div style={{ background:'#22C55E15', border:'1.5px solid #22C55E40', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:700, color:VERDE }}>
+          {salvoMsg}
+        </div>
+      )}
 
       {/* Filtros */}
       <div style={s.filtroRow}>
@@ -171,7 +203,7 @@ export default function ParceiroEstoque() {
                 {/* Preço */}
                 <div style={{ width:120 }}>
                   <input type="number" min="0" step="0.01"
-                    value={preco || ''}
+                    value={preco ? preco.toFixed(2).replace('.', ',') : ''}
                     onChange={e => atualizar(p.id, 'preco', e.target.value)}
                     placeholder="0,00"
                     style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA }} />
@@ -179,9 +211,9 @@ export default function ParceiroEstoque() {
 
                 {/* Quantidade */}
                 <div style={{ width:100 }}>
-                  <input type="number" min="0" step="1"
+                  <input type="text" inputMode="numeric"
                     value={qtd || ''}
-                    onChange={e => atualizar(p.id, 'quantidade', e.target.value)}
+                    onChange={e => handleQtd(p.id, e.target.value)}
                     placeholder="0"
                     style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA,
                       color: qtd===0 ? TEXTO_MEIO : qtd<=5 ? LARANJA : VERDE }} />
