@@ -72,28 +72,22 @@ export default function ParceiroEstoque() {
     if (keys.length === 0) return
     setSalvando(true)
 
-    await Promise.all(keys.map(async prodId => {
-      const vals = alterados[prodId]
-      const item = estoque[prodId]
-      if (item?.id) {
-        await supabase.from('estoque').update({
-          preco: vals.preco, quantidade: vals.quantidade, status_aprovacao: 'pendente'
-        }).eq('id', item.id)
-      } else if (vals.preco > 0 || vals.quantidade > 0) {
-        const { data: novo } = await supabase.from('estoque').insert({
-          parceiro_id: parcId, produto_id: prodId,
-          preco: vals.preco, quantidade: vals.quantidade,
-          ativo: true, status_aprovacao: 'pendente',
-        }).select('id, produto_id, preco, quantidade').single()
-        if (novo) setEstoque(prev => ({ ...prev, [prodId]: novo }))
-      }
-    }))
+    const res  = await fetch('/api/estoque', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alterados }),
+    })
+    const data = await res.json()
 
-    setAlterados({})
     setSalvando(false)
-    setSalvoMsg('✅ Enviado para aprovação do Admin!')
+    if (!res.ok || data.erro) {
+      setSalvoMsg('❌ Erro ao salvar. Tente novamente.')
+    } else {
+      setAlterados({})
+      setSalvoMsg('✅ Enviado para aprovação do Admin!')
+      carregar()
+    }
     setTimeout(() => setSalvoMsg(''), 4000)
-    carregar()
   }
 
   const qtdAlterados = Object.keys(alterados).length

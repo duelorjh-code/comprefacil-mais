@@ -97,24 +97,15 @@ export default function AdminEstoque() {
     const keys = Object.keys(alterados)
     if (keys.length === 0) return
     setSalvando(true)
-    await Promise.all(keys.map(async prodId => {
-      const vals = alterados[prodId]
-      const item = estoque[prodId]
-      if (item?.id) {
-        await supabase.from('estoque').update({
-          preco: vals.preco, quantidade: vals.quantidade, status_aprovacao: 'aprovado'
-        }).eq('id', item.id)
-      } else {
-        const { data: novo } = await supabase.from('estoque').insert({
-          parceiro_id: parcId, produto_id: prodId,
-          preco: vals.preco, quantidade: vals.quantidade,
-          ativo: true, status_aprovacao: 'aprovado',
-        }).select('id, produto_id, preco, quantidade, status_aprovacao').single()
-        if (novo) setEstoque(prev => ({ ...prev, [prodId]: novo }))
-      }
-    }))
-    setAlterados({})
+
+    const res  = await fetch('/api/estoque', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parceiro_id: parcId, alterados }),
+    })
+
     setSalvando(false)
+    setAlterados({})
     carregarEstoque()
   }
 
