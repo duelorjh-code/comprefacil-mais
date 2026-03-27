@@ -177,8 +177,8 @@ export default function AdminParceiros() {
                     `Olá ${p.nome_fantasia}! Seu acesso ao CompreFácil+ foi criado.\n\n` +
                     `🔗 Link: ${process.env.NEXT_PUBLIC_APP_URL}/parceiro/primeiro-acesso\n` +
                     `📱 Telefone: ${p.telefone}\n` +
-                    `🔑 Senha provisória: 2024\n\n` +
-                    `Acesse o link, informe o telefone, a senha provisória e defina sua nova senha.`
+                    `🔑 Senha provisória:202026\n\n` +
+                    `Acesse o link, informe o telefone, criesenha.`
                   )}`}
                   target="_blank" rel="noreferrer"
                   style={{ ...s.btnToggle, flex:1, background:'#25D36620', color:'#25D366', textDecoration:'none', textAlign:'center' as const, border:'1px solid #25D36630' }}>
