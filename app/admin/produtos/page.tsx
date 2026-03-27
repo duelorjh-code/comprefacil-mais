@@ -279,7 +279,8 @@ export default function AdminProdutos() {
                   <p style={{ fontWeight:700, marginBottom:8 }}>Como usar:</p>
                   <p>1. Baixe o modelo CSV abaixo</p>
                   <p>2. Preencha com seus produtos</p>
-                  <p>3. Selecione o CSV e as fotos (nomes devem bater com a coluna <code>arquivo_foto</code>)</p>
+                  <p>3. Selecione as fotos e o CSV juntos</p>
+                  <p>4. Clique em Importar</p>
                 </div>
 
                 <a href="data:text/csv;charset=utf-8,nome,descricao,categoria,unidade_medida,arquivo_foto%0Acoca-cola-lata-350ml,Coca-Cola lata 350ml,bebidas,un,coca-cola-lata-350ml.jpg"
@@ -288,20 +289,26 @@ export default function AdminProdutos() {
                 </a>
 
                 <div style={s.campo}>
-                  <label style={s.label}>1. Selecione o arquivo CSV</label>
+                  <label style={s.label}>1. Selecione as fotos (múltiplas)</label>
+                  <label style={s.uploadLabel}>
+                    <input ref={fotosRef} type="file" accept="image/*" multiple style={{ display:'none' }} onChange={handleFotosImport} />
+                    🖼️ {fotosImport.length > 0 ? `✅ ${fotosImport.length} foto(s) selecionada(s)` : 'Selecionar fotos'}
+                  </label>
+                </div>
+
+                <div style={s.campo}>
+                  <label style={s.label}>2. Selecione o arquivo CSV</label>
                   <label style={s.uploadLabel}>
                     <input ref={csvRef} type="file" accept=".csv" style={{ display:'none' }} onChange={handleCSV} />
                     📋 Selecionar CSV
                   </label>
                 </div>
 
-                <div style={s.campo}>
-                  <label style={s.label}>2. Selecione as fotos (múltiplas)</label>
-                  <label style={s.uploadLabel}>
-                    <input ref={fotosRef} type="file" accept="image/*" multiple style={{ display:'none' }} onChange={handleFotosImport} />
-                    🖼️ {fotosImport.length > 0 ? `${fotosImport.length} foto(s) selecionada(s)` : 'Selecionar fotos'}
-                  </label>
-                </div>
+                {fotosImport.length > 0 && itensImport.length > 0 && (
+                  <button onClick={executarImport} style={{ ...s.btnSalvar, background: '#22C55E', marginTop: 8 }}>
+                    ▶ Importar {itensImport.length} produtos com {fotosImport.length} fotos
+                  </button>
+                )}
               </div>
             ) : (
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -340,7 +347,7 @@ export default function AdminProdutos() {
 
                 {/* Ações */}
                 {!importando && okCount + erroCount < itensImport.length && (
-                  <button onClick={executarImport} style={s.btnSalvar}>
+                  <button onClick={executarImport} style={{ ...s.btnSalvar, background: '#22C55E' }}>
                     ▶ Importar {itensImport.length} produtos
                   </button>
                 )}

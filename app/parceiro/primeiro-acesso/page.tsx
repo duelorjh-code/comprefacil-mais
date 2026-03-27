@@ -40,16 +40,17 @@ export default function PrimeiroAcessoPage() {
 
     setSucesso(true)
 
-    // Faz login automático após definir senha
+    // Faz logout da sessão atual (admin) e login direto como parceiro
     setTimeout(async () => {
+      await supabase.auth.signOut()
       const email = `${tel}@cfm.app`
-      const { data: loginData, error } = await supabase.auth.signInWithPassword({ email, password: senha })
-      if (!error && loginData.user) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
+      if (!error) {
         router.replace('/parceiro')
       } else {
         router.replace('/login')
       }
-    }, 1500)
+    }, 1000)
   }
 
   if (sucesso) return (
