@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Busca o usuário no Auth pelo email
-    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
-    const user = users?.find(u => u.email === email)
+    const { data: listData } = await supabaseAdmin.auth.admin.listUsers()
+    const user = (listData?.users ?? []).find((u: any) => u.email === email)
 
     if (!user) {
       return NextResponse.json({ erro: 'Usuário não encontrado.' }, { status: 400 })
