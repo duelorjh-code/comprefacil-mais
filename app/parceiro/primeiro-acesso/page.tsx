@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { primeiroAcessoParceiro, formatTelefone, limparTelefone } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
+import { formatTelefone, limparTelefone, redirecionarPorRole } from '@/lib/auth'
 import { AZUL, DOURADO, CINZA_BORDA, TEXTO, TEXTO_MEIO, RODAPE } from '@/lib/constants'
 
 export default function PrimeiroAcessoPage() {
@@ -18,15 +19,37 @@ export default function PrimeiroAcessoPage() {
     e.preventDefault()
     setErro('')
     const tel = limparTelefone(telefone)
-    if (tel.length < 10)       return setErro('Telefone inválido.')
-    if (senha.length !== 6)    return setErro('Senha deve ter 6 dígitos.')
-    if (senha !== confirma)    return setErro('As senhas não coincidem.')
+    if (tel.length < 10)    return setErro('Telefone inválido.')
+    if (senha.length !== 6) return setErro('Senha deve ter 6 dígitos.')
+    if (senha !== confirma) return setErro('As senhas não coincidem.')
 
     setLoading(true)
-    const r = await primeiroAcessoParceiro(tel, senha)
+
+    // Usa a API route com service role — não precisa de senha provisória
+    const res  = await fetch('/api/auth/primeiro-acesso', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telefone: tel, senha }),
+    })
+    const data = await res.json()
     setLoading(false)
-    if (!r.sucesso) return setErro(r.erro!)
+
+    if (!res.ok || data.erro) {
+      return setErro(data.erro ?? 'Erro ao definir senha.')
+    }
+
     setSucesso(true)
+
+    // Faz login automático após definir senha
+    setTimeout(async () => {
+      const email = `${tel}@cfm.app`
+      const { data: loginData, error } = await supabase.auth.signInWithPassword({ email, password: senha })
+      if (!error && loginData.user) {
+        router.replace('/parceiro')
+      } else {
+        router.replace('/login')
+      }
+    }, 1500)
   }
 
   if (sucesso) return (
@@ -36,9 +59,8 @@ export default function PrimeiroAcessoPage() {
         <div style={{ fontSize: 48, textAlign: 'center' as const }}>✅</div>
         <h2 style={s.titulo}>Senha definida!</h2>
         <p style={{ fontSize: 14, color: TEXTO_MEIO, textAlign: 'center' as const }}>
-          Agora você pode acessar seu painel normalmente.
+          Entrando no seu painel...
         </p>
-        <button onClick={() => router.push('/login')} style={s.btnPrincipal}>Fazer login</button>
       </div>
     </div>
   )
@@ -49,7 +71,7 @@ export default function PrimeiroAcessoPage() {
         <button onClick={() => router.back()} style={s.voltar}>← Voltar</button>
         <img src="/logo.png" alt="CompreFácil+" style={s.logo} />
         <h1 style={s.titulo}>Primeiro acesso</h1>
-        <p style={{ fontSize: 13, color: TEXTO_MEIO, textAlign: 'center' as const }}>
+        <p style={{ fontSize: 13, color: TEXTO_MEIO, textAlign: 'center' as const, lineHeight: 1.6 }}>
           Informe o telefone cadastrado pelo Admin e defina sua senha.
         </p>
 
@@ -57,7 +79,8 @@ export default function PrimeiroAcessoPage() {
           <div style={s.campo}>
             <label style={s.label}>Telefone cadastrado</label>
             <input style={s.input} type="tel" placeholder="(67) 99999-0000"
-              value={telefone} onChange={e => setTelefone(formatTelefone(e.target.value))} maxLength={15} required />
+              value={telefone} onChange={e => setTelefone(formatTelefone(e.target.value))}
+              maxLength={15} required />
           </div>
           <div style={s.campo}>
             <label style={s.label}>Nova senha (6 dígitos)</label>
@@ -72,10 +95,12 @@ export default function PrimeiroAcessoPage() {
               inputMode="numeric" maxLength={6} required />
           </div>
           {erro && <p style={s.erro}>{erro}</p>}
-          <button type="submit" disabled={loading} style={{ ...s.btnPrincipal, opacity: loading ? 0.7 : 1 }}>
-            {loading ? <span className="anim-spin" style={s.spinner} /> : 'Definir senha'}
+          <button type="submit" disabled={loading}
+            style={{ ...s.btnPrincipal, opacity: loading ? 0.7 : 1 }}>
+            {loading ? <span className="anim-spin" style={s.spinner} /> : 'Definir senha e entrar'}
           </button>
         </form>
+
         <p style={{ fontSize: 11, color: '#aaa', textAlign: 'center' as const }}>{RODAPE}</p>
       </div>
     </div>
