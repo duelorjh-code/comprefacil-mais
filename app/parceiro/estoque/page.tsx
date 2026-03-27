@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { AZUL, DOURADO, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
+import { AZUL, DOURADO, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA } from '@/lib/constants'
 
 const CAT_ICONS: Record<string,string> = { alimentos:'🥗', bebidas:'🥤', higiene:'🧴', limpeza:'🧹', farmacia:'💊', outros:'📦' }
 
@@ -15,27 +15,7 @@ export default function ParceiroEstoque() {
   const [salvando, setSalvando]   = useState(false)
   const [busca, setBusca]         = useState('')
   const [filtro, setFiltro]       = useState<'todos'|'com_estoque'>('todos')
-
-  function fmtPreco(val: number) {
-    if (!val) return ''
-    return val.toFixed(2).replace('.', ',')
-  }
-
-  function handlePreco(prodId: string, raw: string) {
-    const digits = raw.replace(/\D/g, '')
-    const valor  = digits ? parseInt(digits) / 100 : 0
-    const atual  = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
-    const prev   = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
-    setAlterados(a => ({ ...a, [prodId]: { ...prev, preco: valor } }))
-  }
-
-  function handleQtd(prodId: string, raw: string) {
-    const digits = raw.replace(/\D/g, '')
-    const valor  = digits ? parseInt(digits) : 0
-    const atual  = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
-    const prev   = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
-    setAlterados(a => ({ ...a, [prodId]: { ...prev, quantidade: valor } }))
-  }
+  const [salvoMsg, setSalvoMsg]   = useState('')
 
   useEffect(() => { carregar() }, [])
 
@@ -46,11 +26,9 @@ export default function ParceiroEstoque() {
     if (!p) return
     setParcId(p.id)
 
-    // Todos os produtos do catálogo
     const { data: prods } = await supabase.from('produtos').select('*').eq('ativo', true).order('nome')
     setProdutos(prods ?? [])
 
-    // Estoque atual desse parceiro
     const { data: est } = await supabase.from('estoque')
       .select('id, produto_id, preco, quantidade')
       .eq('parceiro_id', p.id)
@@ -61,38 +39,56 @@ export default function ParceiroEstoque() {
     setLoading(false)
   }
 
-  function atualizar(prodId: string, campo: 'preco'|'quantidade', valor: string) {
-    const atual = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
-    const prev  = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
-    const valorLimpo = valor.replace(',', '.')
-    setAlterados(a => ({
-      ...a,
-      [prodId]: { ...prev, [campo]: campo==='preco' ? parseFloat(valorLimpo)||0 : parseInt(valorLimpo)||0 }
-    }))
+  // Preço: digita dígitos, formata como moeda
+  function handlePreco(prodId: string, raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, 8)
+    const valor  = digits ? parseInt(digits) / 100 : 0
+    const atual  = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
+    const prev   = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
+    setAlterados(a => ({ ...a, [prodId]: { ...prev, preco: valor } }))
   }
 
-  function getValor(prodId: string, campo: 'preco'|'quantidade') {
-    if (alterados[prodId] !== undefined) return alterados[prodId][campo]
-    return estoque[prodId]?.[campo] ?? 0
+  function handleQtd(prodId: string, raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, 6)
+    const valor  = digits ? parseInt(digits) : 0
+    const atual  = estoque[prodId] ?? { id:'', preco:0, quantidade:0 }
+    const prev   = alterados[prodId] ?? { preco: atual.preco, quantidade: atual.quantidade }
+    setAlterados(a => ({ ...a, [prodId]: { ...prev, quantidade: valor } }))
   }
 
-  const [salvoMsg, setSalvoMsg] = useState('')
+  function getPreco(prodId: string) {
+    const val = alterados[prodId]?.preco ?? estoque[prodId]?.preco ?? 0
+    if (!val) return ''
+    return val.toFixed(2).replace('.', ',')
+  }
+
+  function getQtd(prodId: string) {
+    const val = alterados[prodId]?.quantidade ?? estoque[prodId]?.quantidade ?? 0
+    return val || ''
+  }
 
   async function salvarTudo() {
-    if (Object.keys(alterados).length === 0) return
+    const keys = Object.keys(alterados)
+    if (keys.length === 0) return
     setSalvando(true)
-    await Promise.all(Object.entries(alterados).map(async ([prodId, vals]) => {
+
+    await Promise.all(keys.map(async prodId => {
+      const vals = alterados[prodId]
       const item = estoque[prodId]
       if (item?.id) {
-        await supabase.from('estoque').update({ preco: vals.preco, quantidade: vals.quantidade, status_aprovacao: 'pendente' }).eq('id', item.id)
+        await supabase.from('estoque').update({
+          preco: vals.preco, quantidade: vals.quantidade, status_aprovacao: 'pendente'
+        }).eq('id', item.id)
       } else if (vals.preco > 0 || vals.quantidade > 0) {
         const { data: novo } = await supabase.from('estoque').insert({
           parceiro_id: parcId, produto_id: prodId,
-          preco: vals.preco, quantidade: vals.quantidade, ativo: true, status_aprovacao: 'pendente',
+          preco: vals.preco, quantidade: vals.quantidade,
+          ativo: true, status_aprovacao: 'pendente',
         }).select('id, produto_id, preco, quantidade').single()
         if (novo) setEstoque(prev => ({ ...prev, [prodId]: novo }))
       }
     }))
+
     setAlterados({})
     setSalvando(false)
     setSalvoMsg('✅ Enviado para aprovação do Admin!')
@@ -105,8 +101,8 @@ export default function ParceiroEstoque() {
   const filtrados = produtos.filter(p => {
     if (busca && !p.nome.toLowerCase().includes(busca.toLowerCase())) return false
     if (filtro === 'com_estoque') {
-      const preco = getValor(p.id, 'preco')
-      const qtd   = getValor(p.id, 'quantidade')
+      const preco = alterados[p.id]?.preco ?? estoque[p.id]?.preco ?? 0
+      const qtd   = alterados[p.id]?.quantidade ?? estoque[p.id]?.quantidade ?? 0
       return preco > 0 || qtd > 0
     }
     return true
@@ -114,7 +110,6 @@ export default function ParceiroEstoque() {
 
   return (
     <div style={s.wrap} className="anim-fadeIn">
-      {/* Cabeçalho */}
       <div style={s.cabecalho}>
         <div>
           <h1 style={s.titulo}>Meu estoque</h1>
@@ -126,30 +121,20 @@ export default function ParceiroEstoque() {
         </button>
       </div>
 
-      {/* Aviso */}
       <div style={s.aviso}>
         📋 Foto, nome e categoria são controlados pelo Admin. Preencha apenas <strong>preço</strong> e <strong>quantidade</strong>. Produtos com preço ou quantidade zero não aparecem na vitrine.
       </div>
 
       {salvoMsg && (
-        <div style={{ background:'#22C55E15', border:'1.5px solid #22C55E40', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:700, color:VERDE }}>
-          {salvoMsg}
-        </div>
+        <div style={s.avisoSucesso}>{salvoMsg}</div>
       )}
 
-      {/* Filtros */}
       <div style={s.filtroRow}>
         <input style={s.busca} placeholder="🔍  Buscar produto…"
           value={busca} onChange={e => setBusca(e.target.value)} />
         <div style={s.abas}>
-          <button onClick={() => setFiltro('todos')}
-            style={{ ...s.aba, ...(filtro==='todos' ? s.abaAtiva : {}) }}>
-            Todos
-          </button>
-          <button onClick={() => setFiltro('com_estoque')}
-            style={{ ...s.aba, ...(filtro==='com_estoque' ? s.abaAtiva : {}) }}>
-            Com estoque
-          </button>
+          <button onClick={() => setFiltro('todos')} style={{ ...s.aba, ...(filtro==='todos'?s.abaAtiva:{}) }}>Todos</button>
+          <button onClick={() => setFiltro('com_estoque')} style={{ ...s.aba, ...(filtro==='com_estoque'?s.abaAtiva:{}) }}>Com estoque</button>
         </div>
       </div>
 
@@ -157,70 +142,59 @@ export default function ParceiroEstoque() {
         <div style={s.loading}><span className="anim-spin" style={s.spinner} /></div>
       ) : (
         <div style={s.tabelaWrap}>
-          {/* Header */}
           <div style={s.thead}>
             <div style={{ width:52 }} />
             <div style={{ flex:3 }}>Produto</div>
             <div style={{ width:60, textAlign:'center' as const }}>Unid</div>
-            <div style={{ width:120, textAlign:'center' as const }}>Preço (R$)</div>
-            <div style={{ width:100, textAlign:'center' as const }}>Quantidade</div>
-            <div style={{ width:80, textAlign:'center' as const }}>Status</div>
+            <div style={{ width:130, textAlign:'center' as const }}>Preço (R$)</div>
+            <div style={{ width:110, textAlign:'center' as const }}>Quantidade</div>
+            <div style={{ width:90, textAlign:'center' as const }}>Status</div>
           </div>
 
           {filtrados.length === 0 && (
-            <div style={{ padding:40, textAlign:'center' as const, color:TEXTO_MEIO, fontSize:14 }}>
-              Nenhum produto encontrado.
-            </div>
+            <div style={{ padding:40, textAlign:'center' as const, color:TEXTO_MEIO }}>Nenhum produto encontrado.</div>
           )}
 
           {filtrados.map(p => {
-            const preco    = getValor(p.id, 'preco')
-            const qtd      = getValor(p.id, 'quantidade')
+            const preco    = getPreco(p.id)
+            const qtd      = getQtd(p.id)
             const alterado = alterados[p.id] !== undefined
-            const ativo    = preco > 0 && qtd > 0
+            const precoNum = alterados[p.id]?.preco ?? estoque[p.id]?.preco ?? 0
+            const qtdNum   = alterados[p.id]?.quantidade ?? estoque[p.id]?.quantidade ?? 0
+            const ativo    = precoNum > 0 && qtdNum > 0
 
             return (
               <div key={p.id} style={{ ...s.linha, background: alterado ? '#FFFBEB' : '#fff' }}>
-                {/* Foto */}
                 <div style={{ width:52 }}>
                   {p.imagem_url
                     ? <img src={p.imagem_url} alt={p.nome} style={s.miniThumb} />
-                    : <div style={s.miniPlaceholder}>{CAT_ICONS[p.categoria]}</div>
-                  }
+                    : <div style={s.miniPlaceholder}>{CAT_ICONS[p.categoria]}</div>}
                 </div>
-
-                {/* Nome */}
                 <div style={{ flex:3 }}>
                   <div style={s.linhaNome}>{p.nome}</div>
                   <div style={s.linhaCat}>{CAT_ICONS[p.categoria]} {p.categoria}</div>
                 </div>
-
-                {/* Unidade */}
-                <div style={{ width:60, textAlign:'center' as const, fontSize:12, color:TEXTO_MEIO, fontWeight:600 }}>
-                  {p.unidade_medida}
-                </div>
-
-                {/* Preço */}
-                <div style={{ width:120 }}>
-                  <input type="number" min="0" step="0.01"
-                    value={preco ? preco.toFixed(2).replace('.', ',') : ''}
-                    onChange={e => atualizar(p.id, 'preco', e.target.value)}
+                <div style={{ width:60, textAlign:'center' as const, fontSize:12, color:TEXTO_MEIO, fontWeight:600 }}>{p.unidade_medida}</div>
+                <div style={{ width:130 }}>
+                  <input
+                    type="text" inputMode="decimal"
+                    value={preco}
+                    onChange={e => handlePreco(p.id, e.target.value)}
                     placeholder="0,00"
-                    style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA }} />
+                    style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA }}
+                  />
                 </div>
-
-                {/* Quantidade */}
-                <div style={{ width:100 }}>
-                  <input type="text" inputMode="numeric"
-                    value={qtd || ''}
+                <div style={{ width:110 }}>
+                  <input
+                    type="text" inputMode="numeric"
+                    value={qtd}
                     onChange={e => handleQtd(p.id, e.target.value)}
                     placeholder="0"
                     style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA,
-                      color: qtd===0 ? TEXTO_MEIO : qtd<=5 ? LARANJA : VERDE }} />
+                      color: qtdNum===0 ? TEXTO_MEIO : qtdNum<=5 ? LARANJA : VERDE }}
+                  />
                 </div>
-
-                {/* Status */}
-                <div style={{ width:80, textAlign:'center' as const }}>
+                <div style={{ width:90, textAlign:'center' as const }}>
                   <span style={{ ...s.pill, background: ativo?'#22C55E20':'#F4F6FB', color: ativo?VERDE:TEXTO_MEIO }}>
                     {ativo ? '✅ Ativo' : '○ Inativo'}
                   </span>
@@ -231,7 +205,6 @@ export default function ParceiroEstoque() {
         </div>
       )}
 
-      {/* Botão salvar flutuante quando há alterações */}
       {qtdAlterados > 0 && (
         <div style={s.floatSalvar}>
           <button onClick={salvarTudo} disabled={salvando} style={s.btnSalvarFloat}>
@@ -248,8 +221,9 @@ const s: Record<string, React.CSSProperties> = {
   cabecalho: { display:'flex', alignItems:'flex-start', justifyContent:'space-between' },
   titulo: { fontSize:22, fontWeight:800, color:TEXTO },
   sub: { fontSize:13, color:TEXTO_MEIO, marginTop:2 },
-  btnSalvar: { background:AZUL, color:'#fff', border:'none', borderRadius:10, padding:'10px 20px', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit', transition:'opacity 0.2s' },
+  btnSalvar: { background:AZUL, color:'#fff', border:'none', borderRadius:10, padding:'10px 20px', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit' },
   aviso: { background:'#EEF2FF', borderRadius:10, padding:'12px 16px', fontSize:13, color:AZUL, border:`1px solid #C7D2FE` },
+  avisoSucesso: { background:'#22C55E15', border:'1.5px solid #22C55E40', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:700, color:VERDE },
   filtroRow: { display:'flex', gap:12, alignItems:'center' },
   busca: { flex:1, border:`1.5px solid ${CINZA_BORDA}`, borderRadius:10, padding:'10px 14px', fontSize:14, background:'#fff', outline:'none', fontFamily:'inherit', color:TEXTO },
   abas: { display:'flex', gap:6 },
@@ -264,8 +238,8 @@ const s: Record<string, React.CSSProperties> = {
   miniPlaceholder: { width:44, height:44, borderRadius:8, background:'#F4F6FB', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 },
   linhaNome: { fontSize:13, fontWeight:700, color:TEXTO },
   linhaCat: { fontSize:11, color:TEXTO_MEIO, marginTop:2 },
-  inputTabela: { width:'100%', border:'1.5px solid', borderRadius:8, padding:'7px 10px', fontSize:13, fontWeight:700, color:TEXTO, background:'#FAFBFE', outline:'none', fontFamily:'inherit', textAlign:'center' as const },
-  pill: { fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:20, whiteSpace:'nowrap' as const },
+  inputTabela: { width:'100%', border:'1.5px solid', borderRadius:8, padding:'8px 10px', fontSize:14, fontWeight:700, color:TEXTO, background:'#FAFBFE', outline:'none', fontFamily:'inherit', textAlign:'center' as const },
+  pill: { fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:20 },
   floatSalvar: { position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', zIndex:50 },
   btnSalvarFloat: { background:AZUL, color:'#fff', border:'none', borderRadius:30, padding:'14px 32px', fontSize:15, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 4px 20px rgba(27,47,94,0.3)' },
 }
