@@ -171,10 +171,24 @@ export default function AdminParceiros() {
                 <div style={s.infoItem}><span style={s.infoL}>PIX</span><span style={s.infoV}>{p.pix_chave || '–'}</span></div>
                 <div style={s.infoItem}><span style={s.infoL}>Horário</span><span style={s.infoV}>{p.horario_abertura} – {p.horario_fechamento}</span></div>
               </div>
-              <button onClick={() => toggleAtivo(p.id, p.ativo)}
-                style={{ ...s.btnToggle, background: p.ativo ? '#EF444420' : '#22C55E20', color: p.ativo ? VERMELHO : VERDE }}>
-                {p.ativo ? 'Desativar' : 'Ativar'}
-              </button>
+              <div style={{ display:'flex', gap:8 }}>
+                <a
+                  href={`https://wa.me/55${p.telefone.replace(/\D/g,'')}?text=${encodeURIComponent(
+                    `Olá ${p.nome_fantasia}! Seu acesso ao CompreFácil+ foi criado.\n\n` +
+                    `🔗 Link: ${process.env.NEXT_PUBLIC_APP_URL}/parceiro/primeiro-acesso\n` +
+                    `📱 Telefone: ${p.telefone}\n` +
+                    `🔑 Senha provisória: 2024\n\n` +
+                    `Acesse o link, informe o telefone, a senha provisória e defina sua nova senha.`
+                  )}`}
+                  target="_blank" rel="noreferrer"
+                  style={{ ...s.btnToggle, flex:1, background:'#25D36620', color:'#25D366', textDecoration:'none', textAlign:'center' as const, border:'1px solid #25D36630' }}>
+                  💬 Enviar acesso
+                </a>
+                <button onClick={() => toggleAtivo(p.id, p.ativo)}
+                  style={{ ...s.btnToggle, flex:1, background: p.ativo ? '#EF444420' : '#22C55E20', color: p.ativo ? VERMELHO : VERDE }}>
+                  {p.ativo ? 'Desativar' : 'Ativar'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
