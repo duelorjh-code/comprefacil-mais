@@ -79,10 +79,9 @@ export default function Vitrine() {
         parceiros ( id, lat, lng, ativo )
       `)
       .eq('ativo', true)
+      .gt('preco', 0)
       .gt('quantidade', 0)
       .eq('status_aprovacao', 'aprovado')
-      .eq('produtos.ativo', true)
-      .eq('parceiros.ativo', true)
 
     if (!data) { setLoading(false); return }
 
