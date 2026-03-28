@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA } from '@/lib/constants'
 
 const CAT_ICONS: Record<string,string> = { alimentos:'🥗', bebidas:'🥤', higiene:'🧴', limpeza:'🧹', farmacia:'💊', outros:'📦' }
+const CAT_COR:   Record<string,string> = { alimentos:'#16A34A', bebidas:'#2563EB', higiene:'#7C3AED', limpeza:'#0891B2', farmacia:'#DC2626', outros:'#92400E' }
 
 export default function ParceiroEstoque() {
   const [produtos, setProdutos]   = useState<any[]>([])
@@ -16,6 +17,7 @@ export default function ParceiroEstoque() {
   const [busca, setBusca]         = useState('')
   const [filtro, setFiltro]       = useState<'todos'|'com_estoque'>('todos')
   const [salvoMsg, setSalvoMsg]   = useState('')
+  const [errMsg, setErrMsg]       = useState('')
 
   useEffect(() => { carregar() }, [])
 
@@ -25,21 +27,15 @@ export default function ParceiroEstoque() {
     const { data: p } = await supabase.from('parceiros').select('id').eq('usuario_id', user.id).single()
     if (!p) return
     setParcId(p.id)
-
-    const { data: prods } = await supabase.from('produtos').select('*').eq('ativo', true).order('nome')
+    const { data: prods } = await supabase.from('produtos').select('*').eq('ativo', true).order('categoria').then(r => ({ ...r, data: r.data?.sort((a,b) => a.nome.localeCompare(b.nome)) }))
     setProdutos(prods ?? [])
-
-    const { data: est } = await supabase.from('estoque')
-      .select('id, produto_id, preco, quantidade')
-      .eq('parceiro_id', p.id)
-
-    const map: Record<string, { id:string, preco:number, quantidade:number }> = {}
-    ;(est ?? []).forEach((e: any) => { map[e.produto_id] = { id: e.id, preco: e.preco, quantidade: e.quantidade } })
+    const { data: est } = await supabase.from('estoque').select('id, produto_id, preco, quantidade').eq('parceiro_id', p.id)
+    const map: Record<string, any> = {}
+    ;(est ?? []).forEach((e: any) => { map[e.produto_id] = e })
     setEstoque(map)
     setLoading(false)
   }
 
-  // Preço: digita dígitos, formata como moeda
   function handlePreco(prodId: string, raw: string) {
     const digits = raw.replace(/\D/g, '').slice(0, 8)
     const valor  = digits ? parseInt(digits) / 100 : 0
@@ -58,8 +54,7 @@ export default function ParceiroEstoque() {
 
   function getPreco(prodId: string) {
     const val = alterados[prodId]?.preco ?? estoque[prodId]?.preco ?? 0
-    if (!val) return ''
-    return val.toFixed(2).replace('.', ',')
+    return val ? val.toFixed(2).replace('.', ',') : ''
   }
 
   function getQtd(prodId: string) {
@@ -70,29 +65,26 @@ export default function ParceiroEstoque() {
   async function salvarTudo() {
     const keys = Object.keys(alterados)
     if (keys.length === 0) return
-    setSalvando(true)
-
+    setSalvando(true); setErrMsg('')
     const res  = await fetch('/api/estoque', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ alterados }),
     })
     const data = await res.json()
-
     setSalvando(false)
     if (!res.ok || data.erro) {
-      setSalvoMsg('❌ Erro ao salvar. Tente novamente.')
+      setErrMsg('❌ Erro ao salvar. Tente novamente.')
     } else {
       setAlterados({})
       setSalvoMsg('✅ Enviado para aprovação do Admin!')
       carregar()
     }
-    setTimeout(() => setSalvoMsg(''), 4000)
+    setTimeout(() => { setSalvoMsg(''); setErrMsg('') }, 4000)
   }
 
   const qtdAlterados = Object.keys(alterados).length
-
-  const filtrados = produtos.filter(p => {
+  const filtrados    = produtos.filter(p => {
     if (busca && !p.nome.toLowerCase().includes(busca.toLowerCase())) return false
     if (filtro === 'com_estoque') {
       const preco = alterados[p.id]?.preco ?? estoque[p.id]?.preco ?? 0
@@ -102,107 +94,154 @@ export default function ParceiroEstoque() {
     return true
   })
 
+  // Agrupa por categoria
+  const grupos: Record<string, any[]> = {}
+  filtrados.forEach(p => {
+    if (!grupos[p.categoria]) grupos[p.categoria] = []
+    grupos[p.categoria].push(p)
+  })
+
   return (
-    <div style={s.wrap} className="anim-fadeIn">
+    <div style={s.wrap}>
+      {/* Cabeçalho */}
       <div style={s.cabecalho}>
         <div>
           <h1 style={s.titulo}>Meu estoque</h1>
-          <p style={s.sub}>Preencha preço e quantidade nos produtos que deseja vender</p>
+          <p style={s.sub}>Preencha preço e quantidade — aguarda aprovação do Admin para aparecer na vitrine</p>
         </div>
         <button onClick={salvarTudo} disabled={salvando || qtdAlterados===0}
-          style={{ ...s.btnSalvar, opacity: qtdAlterados===0 ? 0.4 : 1 }}>
-          {salvando ? '💾 Salvando...' : qtdAlterados>0 ? `💾 Salvar (${qtdAlterados})` : '💾 Salvar'}
+          style={{ ...s.btnSalvar, opacity: qtdAlterados===0 ? 0.45 : 1 }}>
+          {salvando ? '⏳ Salvando...' : qtdAlterados>0 ? `💾 Salvar (${qtdAlterados})` : '💾 Salvar'}
         </button>
       </div>
 
+      {/* Mensagens */}
+      {salvoMsg && <div style={s.msgSucesso}>{salvoMsg}</div>}
+      {errMsg   && <div style={s.msgErro}>{errMsg}</div>}
+
+      {/* Aviso */}
       <div style={s.aviso}>
-        📋 Foto, nome e categoria são controlados pelo Admin. Preencha apenas <strong>preço</strong> e <strong>quantidade</strong>. Produtos com preço ou quantidade zero não aparecem na vitrine.
+        ℹ️ Foto, nome e categoria são controlados pelo Admin. Preencha apenas <strong>preço</strong> e <strong>quantidade</strong>.
+        Produtos com qualquer campo zerado não aparecem na vitrine.
       </div>
 
-      {salvoMsg && (
-        <div style={s.avisoSucesso}>{salvoMsg}</div>
-      )}
-
-      <div style={s.filtroRow}>
-        <input style={s.busca} placeholder="🔍  Buscar produto…"
+      {/* Barra de filtros */}
+      <div style={s.filtroBar}>
+        <input style={s.busca} placeholder="🔍  Buscar produto..."
           value={busca} onChange={e => setBusca(e.target.value)} />
-        <div style={s.abas}>
-          <button onClick={() => setFiltro('todos')} style={{ ...s.aba, ...(filtro==='todos'?s.abaAtiva:{}) }}>Todos</button>
-          <button onClick={() => setFiltro('com_estoque')} style={{ ...s.aba, ...(filtro==='com_estoque'?s.abaAtiva:{}) }}>Com estoque</button>
-        </div>
+        <button onClick={() => setFiltro('todos')}
+          style={{ ...s.filtroBtn, ...(filtro==='todos'?s.filtroBtnAtivo:{}) }}>Todos</button>
+        <button onClick={() => setFiltro('com_estoque')}
+          style={{ ...s.filtroBtn, ...(filtro==='com_estoque'?s.filtroBtnAtivo:{}) }}>Com estoque</button>
       </div>
 
       {loading ? (
         <div style={s.loading}><span className="anim-spin" style={s.spinner} /></div>
       ) : (
-        <div style={s.tabelaWrap}>
-          <div style={s.thead}>
-            <div style={{ width:52 }} />
-            <div style={{ flex:3 }}>Produto</div>
-            <div style={{ width:60, textAlign:'center' as const }}>Unid</div>
-            <div style={{ width:130, textAlign:'center' as const }}>Preço (R$)</div>
-            <div style={{ width:110, textAlign:'center' as const }}>Quantidade</div>
-            <div style={{ width:90, textAlign:'center' as const }}>Status</div>
+        <div style={s.planilha}>
+          {/* Header fixo */}
+          <div style={s.header}>
+            <div style={{ width: 50 }} />
+            <div style={{ flex: 3, paddingLeft: 8 }}>PRODUTO</div>
+            <div style={s.hCol}>UNID</div>
+            <div style={s.hColEdit}>PREÇO (R$)</div>
+            <div style={s.hColEdit}>QUANTIDADE</div>
+            <div style={s.hCol}>STATUS</div>
           </div>
 
-          {filtrados.length === 0 && (
-            <div style={{ padding:40, textAlign:'center' as const, color:TEXTO_MEIO }}>Nenhum produto encontrado.</div>
-          )}
-
-          {filtrados.map(p => {
-            const preco    = getPreco(p.id)
-            const qtd      = getQtd(p.id)
-            const alterado = alterados[p.id] !== undefined
-            const precoNum = alterados[p.id]?.preco ?? estoque[p.id]?.preco ?? 0
-            const qtdNum   = alterados[p.id]?.quantidade ?? estoque[p.id]?.quantidade ?? 0
-            const ativo    = precoNum > 0 && qtdNum > 0
-
-            return (
-              <div key={p.id} style={{ ...s.linha, background: alterado ? '#FFFBEB' : '#fff' }}>
-                <div style={{ width:52 }}>
-                  {p.imagem_url
-                    ? <img src={p.imagem_url} alt={p.nome} style={s.miniThumb} />
-                    : <div style={s.miniPlaceholder}>{CAT_ICONS[p.categoria]}</div>}
-                </div>
-                <div style={{ flex:3 }}>
-                  <div style={s.linhaNome}>{p.nome}</div>
-                  <div style={s.linhaCat}>{CAT_ICONS[p.categoria]} {p.categoria}</div>
-                </div>
-                <div style={{ width:60, textAlign:'center' as const, fontSize:12, color:TEXTO_MEIO, fontWeight:600 }}>{p.unidade_medida}</div>
-                <div style={{ width:130 }}>
-                  <input
-                    type="text" inputMode="decimal"
-                    value={preco}
-                    onChange={e => handlePreco(p.id, e.target.value)}
-                    placeholder="0,00"
-                    style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA }}
-                  />
-                </div>
-                <div style={{ width:110 }}>
-                  <input
-                    type="text" inputMode="numeric"
-                    value={qtd}
-                    onChange={e => handleQtd(p.id, e.target.value)}
-                    placeholder="0"
-                    style={{ ...s.inputTabela, borderColor: alterado ? DOURADO : CINZA_BORDA,
-                      color: qtdNum===0 ? TEXTO_MEIO : qtdNum<=5 ? LARANJA : VERDE }}
-                  />
-                </div>
-                <div style={{ width:90, textAlign:'center' as const }}>
-                  <span style={{ ...s.pill, background: ativo?'#22C55E20':'#F4F6FB', color: ativo?VERDE:TEXTO_MEIO }}>
-                    {ativo ? '✅ Ativo' : '○ Inativo'}
-                  </span>
-                </div>
+          {/* Linhas agrupadas por categoria */}
+          {Object.entries(grupos).map(([cat, prods]) => (
+            <div key={cat}>
+              {/* Separador de categoria */}
+              <div style={{ ...s.catRow, borderLeft: `4px solid ${CAT_COR[cat] ?? '#64748B'}` }}>
+                {CAT_ICONS[cat]} {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                <span style={s.catCount}>{prods.length} produto{prods.length !== 1 ? 's' : ''}</span>
               </div>
-            )
-          })}
+
+              {prods.map((p, idx) => {
+                const preco    = getPreco(p.id)
+                const qtd      = getQtd(p.id)
+                const alterado = alterados[p.id] !== undefined
+                const precoNum = alterados[p.id]?.preco ?? estoque[p.id]?.preco ?? 0
+                const qtdNum   = alterados[p.id]?.quantidade ?? estoque[p.id]?.quantidade ?? 0
+                const ativo    = precoNum > 0 && qtdNum > 0
+
+                return (
+                  <div key={p.id} style={{
+                    ...s.row,
+                    background: alterado ? '#FFFDE7' : idx % 2 === 0 ? '#fff' : '#F8FAFC',
+                  }}>
+                    {/* Miniatura */}
+                    <div style={s.cellFoto}>
+                      {p.imagem_url
+                        ? <img src={p.imagem_url} alt={p.nome} style={s.thumb} />
+                        : <div style={s.thumbPlaceholder}>{CAT_ICONS[p.categoria]}</div>}
+                    </div>
+
+                    {/* Nome */}
+                    <div style={{ flex: 3, padding: '0 8px' }}>
+                      <div style={s.prodNome}>{p.nome}</div>
+                    </div>
+
+                    {/* Unidade */}
+                    <div style={s.cell}>{p.unidade_medida}</div>
+
+                    {/* Preço */}
+                    <div style={s.cellEdit}>
+                      <input
+                        type="text" inputMode="decimal"
+                        value={preco}
+                        onChange={e => handlePreco(p.id, e.target.value)}
+                        placeholder="0,00"
+                        style={{ ...s.cellInput, borderColor: alterado ? DOURADO : '#D1D5DB' }}
+                      />
+                    </div>
+
+                    {/* Quantidade */}
+                    <div style={s.cellEdit}>
+                      <input
+                        type="text" inputMode="numeric"
+                        value={qtd}
+                        onChange={e => handleQtd(p.id, e.target.value)}
+                        placeholder="0"
+                        style={{
+                          ...s.cellInput,
+                          borderColor: alterado ? DOURADO : '#D1D5DB',
+                          color: qtdNum === 0 ? '#9CA3AF' : qtdNum <= 5 ? LARANJA : VERDE,
+                          fontWeight: qtdNum > 0 ? 800 : 400,
+                        }}
+                      />
+                    </div>
+
+                    {/* Status */}
+                    <div style={s.cellStatus}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+                        background: ativo ? '#DCFCE7' : '#F1F5F9',
+                        color: ativo ? '#15803D' : '#94A3B8',
+                      }}>
+                        {ativo ? '✅ Ativo' : '○'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+
+          {filtrados.length === 0 && (
+            <div style={{ padding: '40px', textAlign: 'center' as const, color: TEXTO_MEIO }}>
+              Nenhum produto encontrado.
+            </div>
+          )}
         </div>
       )}
 
+      {/* Botão flutuante */}
       {qtdAlterados > 0 && (
-        <div style={s.floatSalvar}>
-          <button onClick={salvarTudo} disabled={salvando} style={s.btnSalvarFloat}>
-            {salvando ? '💾 Salvando...' : `💾 Salvar ${qtdAlterados} alteração(ões)`}
+        <div style={s.float}>
+          <button onClick={salvarTudo} disabled={salvando} style={s.btnFloat}>
+            {salvando ? '⏳ Salvando...' : `💾 Salvar ${qtdAlterados} alteração(ões)`}
           </button>
         </div>
       )}
@@ -211,29 +250,35 @@ export default function ParceiroEstoque() {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  wrap: { display:'flex', flexDirection:'column', gap:16, paddingBottom:80 },
-  cabecalho: { display:'flex', alignItems:'flex-start', justifyContent:'space-between' },
-  titulo: { fontSize:22, fontWeight:800, color:TEXTO },
-  sub: { fontSize:13, color:TEXTO_MEIO, marginTop:2 },
-  btnSalvar: { background:AZUL, color:'#fff', border:'none', borderRadius:10, padding:'10px 20px', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit' },
-  aviso: { background:'#EEF2FF', borderRadius:10, padding:'12px 16px', fontSize:13, color:AZUL, border:`1px solid #C7D2FE` },
-  avisoSucesso: { background:'#22C55E15', border:'1.5px solid #22C55E40', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:700, color:VERDE },
-  filtroRow: { display:'flex', gap:12, alignItems:'center' },
-  busca: { flex:1, border:`1.5px solid ${CINZA_BORDA}`, borderRadius:10, padding:'10px 14px', fontSize:14, background:'#fff', outline:'none', fontFamily:'inherit', color:TEXTO },
-  abas: { display:'flex', gap:6 },
-  aba: { padding:'8px 14px', borderRadius:20, border:`1.5px solid ${CINZA_BORDA}`, background:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', color:TEXTO_MEIO, fontFamily:'inherit' },
-  abaAtiva: { background:AZUL, color:'#fff', borderColor:AZUL },
-  loading: { display:'flex', justifyContent:'center', padding:60 },
-  spinner: { width:28, height:28, borderRadius:'50%', border:`3px solid ${AZUL}30`, borderTopColor:AZUL, display:'block' },
-  tabelaWrap: { background:'#fff', borderRadius:14, overflow:'hidden', boxShadow:'0 1px 8px rgba(27,47,94,0.06)', border:`1px solid ${CINZA_BORDA}` },
-  thead: { display:'flex', alignItems:'center', gap:12, padding:'10px 16px', background:'#F4F6FB', borderBottom:`1px solid ${CINZA_BORDA}`, fontSize:11, fontWeight:800, color:TEXTO_MEIO, textTransform:'uppercase' as const, letterSpacing:'0.05em' },
-  linha: { display:'flex', alignItems:'center', gap:12, padding:'10px 16px', borderBottom:`1px solid ${CINZA_BORDA}`, transition:'background 0.2s' },
-  miniThumb: { width:44, height:44, borderRadius:8, objectFit:'cover' as const },
-  miniPlaceholder: { width:44, height:44, borderRadius:8, background:'#F4F6FB', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 },
-  linhaNome: { fontSize:13, fontWeight:700, color:TEXTO },
-  linhaCat: { fontSize:11, color:TEXTO_MEIO, marginTop:2 },
-  inputTabela: { width:'100%', border:'1.5px solid', borderRadius:8, padding:'8px 10px', fontSize:14, fontWeight:700, color:TEXTO, background:'#FAFBFE', outline:'none', fontFamily:'inherit', textAlign:'center' as const },
-  pill: { fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:20 },
-  floatSalvar: { position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', zIndex:50 },
-  btnSalvarFloat: { background:AZUL, color:'#fff', border:'none', borderRadius:30, padding:'14px 32px', fontSize:15, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 4px 20px rgba(27,47,94,0.3)' },
+  wrap:          { display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 80 },
+  cabecalho:     { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
+  titulo:        { fontSize: 22, fontWeight: 800, color: '#1A2340', margin: 0 },
+  sub:           { fontSize: 13, color: '#64748B', marginTop: 4 },
+  btnSalvar:     { background: AZUL, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const },
+  msgSucesso:    { background: '#DCFCE7', border: '1px solid #86EFAC', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#15803D' },
+  msgErro:       { background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#DC2626' },
+  aviso:         { background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1D4ED8' },
+  filtroBar:     { display: 'flex', gap: 8, alignItems: 'center' },
+  busca:         { flex: 1, border: '1px solid #D1D5DB', borderRadius: 6, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A2340' },
+  filtroBtn:     { padding: '8px 14px', borderRadius: 6, border: '1px solid #D1D5DB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#64748B', fontFamily: 'inherit' },
+  filtroBtnAtivo:{ background: AZUL, color: '#fff', borderColor: AZUL },
+  loading:       { display: 'flex', justifyContent: 'center', padding: 60 },
+  spinner:       { width: 28, height: 28, borderRadius: '50%', border: '3px solid rgba(27,47,94,0.15)', borderTopColor: AZUL, display: 'block' },
+  planilha:      { background: '#fff', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' },
+  header:        { display: 'flex', alignItems: 'center', background: '#1E293B', padding: '0 0 0 0', borderBottom: '2px solid #334155', height: 38 },
+  hCol:          { width: 70, textAlign: 'center' as const, fontSize: 10, fontWeight: 800, color: '#94A3B8', letterSpacing: '0.07em', textTransform: 'uppercase' as const },
+  hColEdit:      { width: 130, textAlign: 'center' as const, fontSize: 10, fontWeight: 800, color: '#94A3B8', letterSpacing: '0.07em', textTransform: 'uppercase' as const },
+  catRow:        { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: '#F1F5F9', fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase' as const, letterSpacing: '0.06em', borderBottom: '1px solid #E2E8F0' },
+  catCount:      { marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: '#94A3B8' },
+  row:           { display: 'flex', alignItems: 'center', borderBottom: '1px solid #E2E8F0', minHeight: 48, transition: 'background 0.15s' },
+  cellFoto:      { width: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 0' },
+  thumb:         { width: 38, height: 38, borderRadius: 4, objectFit: 'cover' as const },
+  thumbPlaceholder:{ width: 38, height: 38, borderRadius: 4, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 },
+  prodNome:      { fontSize: 13, fontWeight: 700, color: '#1A2340' },
+  cell:          { width: 70, textAlign: 'center' as const, fontSize: 12, color: '#64748B', fontWeight: 600 },
+  cellEdit:      { width: 130, padding: '4px 6px' },
+  cellInput:     { width: '100%', border: '1.5px solid', borderRadius: 4, padding: '6px 8px', fontSize: 13, fontWeight: 700, color: '#1A2340', background: '#FAFBFE', outline: 'none', fontFamily: 'inherit', textAlign: 'center' as const },
+  cellStatus:    { width: 70, textAlign: 'center' as const },
+  float:         { position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 50 },
+  btnFloat:      { background: AZUL, color: '#fff', border: 'none', borderRadius: 30, padding: '13px 28px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 20px rgba(27,47,94,0.35)' },
 }

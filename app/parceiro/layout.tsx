@@ -1,132 +1,166 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { logout } from '@/lib/auth'
-import { AZUL, DOURADO, RODAPE, linkWhats } from '@/lib/constants'
+import { AZUL, DOURADO, linkWhats } from '@/lib/constants'
 
 const MENU = [
-  { href: '/parceiro',           icon: '📦', label: 'Pedidos'    },
-  { href: '/parceiro/estoque',   icon: '🛒', label: 'Estoque'    },
-  { href: '/parceiro/financeiro',icon: '💰', label: 'Financeiro' },
-  { href: '/parceiro/historico', icon: '📋', label: 'Histórico'  },
+  { href: '/parceiro',            icon: '📦', label: 'Pedidos'    },
+  { href: '/parceiro/estoque',    icon: '🛒', label: 'Estoque'    },
+  { href: '/parceiro/financeiro', icon: '💰', label: 'Financeiro' },
+  { href: '/parceiro/historico',  icon: '📋', label: 'Histórico'  },
 ]
 
 export default function ParceiroLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const [nomeFantasia, setNomeFantasia] = useState('')
-  const [pedidosNovos, setPedidosNovos] = useState(0)
-  const [sidebarAberta, setSidebarAberta] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-
-  const tocarAlarme = useCallback(() => {
-    if (!audioRef.current) audioRef.current = new Audio('/sons/alerta.mp3')
-    audioRef.current.play().catch(() => {})
-  }, [])
+  const [loja, setLoja]       = useState('')
+  const [saldo, setSaldo]     = useState(0)
+  const [aberto, setAberto]   = useState(false)
+  const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
-    async function init() {
+    async function carregar() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data: p } = await supabase.from('parceiros').select('id, nome_fantasia').eq('usuario_id', user.id).single()
-      if (!p) return
-      setNomeFantasia(p.nome_fantasia)
-
-      // Contagem pedidos novos
-      const { count } = await supabase.from('pedidos')
-        .select('*', { count: 'exact', head: true })
-        .eq('parceiro_id', p.id)
-        .eq('status', 'pago')
-      setPedidosNovos(count ?? 0)
-
-      // Realtime
-      supabase.channel('parceiro-pedidos')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos', filter: `parceiro_id=eq.${p.id}` }, () => {
-          setPedidosNovos(v => v + 1)
-          tocarAlarme()
-        })
-        .subscribe()
+      if (!user) { router.replace('/login'); return }
+      const { data: p } = await supabase
+        .from('parceiros')
+        .select('nome_fantasia, saldo, ativo')
+        .eq('usuario_id', user.id)
+        .single()
+      if (p) { setLoja(p.nome_fantasia); setSaldo(p.saldo ?? 0) }
     }
-    init()
-  }, [tocarAlarme])
+    carregar()
 
-  async function handleLogout() { await logout(); router.replace('/') }
+    // Som alerta novos pedidos
+    const canal = supabase.channel('parceiro-layout')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, () => {
+        try { audioRef.current?.play().catch(() => {}) } catch {}
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(canal) }
+  }, [])
+
+  async function handleLogout() {
+    await logout()
+    router.replace('/')
+  }
+
+  const isAtivo = (href: string) =>
+    href === '/parceiro' ? pathname === '/parceiro' : pathname.startsWith(href)
 
   return (
-    <div style={s.root}>
-      {sidebarAberta && <div style={s.overlay} onClick={() => setSidebarAberta(false)} />}
+    <div style={s.shell}>
+      <audio ref={audioRef} src="/sons/alerta.mp3" preload="auto" />
 
-      <aside style={{ ...s.sidebar, ...(sidebarAberta ? {} : s.sidebarHidden) }}>
-        <div style={s.logoWrap}>
+      {/* SIDEBAR */}
+      <aside style={{ ...s.sidebar, transform: aberto ? 'translateX(0)' : 'translateX(-100%)', }}>
+
+        {/* Logo + identidade */}
+        <div style={s.brand}>
           <img src="/logo.png" alt="CompreFácil+" style={s.logo} />
-          {nomeFantasia && <span style={s.nomeParceiro}>{nomeFantasia}</span>}
+          <div style={s.divider} />
+          <div style={s.lojaWrap}>
+            <div style={s.lojaNome}>{loja || '...'}</div>
+            <div style={s.lojaBadge}>
+              <span style={s.dot} />
+              Parceiro ativo
+            </div>
+          </div>
         </div>
 
+        {/* Saldo rápido */}
+        <div style={s.saldoBox}>
+          <div style={s.saldoLabel}>Saldo disponível</div>
+          <div style={s.saldoValor}>R$ {saldo.toFixed(2).replace('.', ',')}</div>
+        </div>
+
+        {/* Menu */}
         <nav style={s.nav}>
           {MENU.map(item => {
-            const ativo = pathname === item.href || (item.href !== '/parceiro' && pathname.startsWith(item.href))
+            const ativo = isAtivo(item.href)
             return (
-              <button key={item.href}
-                onClick={() => { router.push(item.href); setSidebarAberta(false) }}
-                style={{ ...s.navItem, ...(ativo ? s.navAtivo : {}) }}>
-                <span>{item.icon}</span>
-                <span style={s.navLabel}>{item.label}</span>
-                {item.href === '/parceiro' && pedidosNovos > 0 && (
-                  <span style={s.badge} className="anim-blink">{pedidosNovos}</span>
-                )}
+              <button key={item.href} onClick={() => { router.push(item.href); setAberto(false) }}
+                style={{ ...s.menuItem, ...(ativo ? s.menuAtivo : {}) }}>
+                <span style={s.menuIcon}>{item.icon}</span>
+                <span style={{ ...s.menuLabel, color: ativo ? DOURADO : 'rgba(255,255,255,0.75)' }}>{item.label}</span>
+                {ativo && <div style={s.menuBarra} />}
               </button>
             )
           })}
         </nav>
 
-        <div style={s.sidebarBottom}>
+        {/* Rodapé sidebar */}
+        <div style={s.sideFooter}>
           <a href={linkWhats('Olá, sou parceiro CompreFácil+ e preciso de ajuda.')}
             target="_blank" rel="noreferrer" style={s.btnWhats}>
             💬 Falar com Admin
           </a>
-          <button onClick={handleLogout} style={s.btnSair}>🚪 Sair</button>
+          <button onClick={handleLogout} style={s.btnSair}>
+            🚪 Sair da conta
+          </button>
+          <p style={s.copy}>© 2026 CompreFácil+</p>
         </div>
-
-        <p style={s.rodape}>{RODAPE}</p>
       </aside>
 
+      {/* Overlay mobile */}
+      {aberto && <div style={s.overlay} onClick={() => setAberto(false)} />}
+
+      {/* CONTEÚDO */}
       <div style={s.main}>
+        {/* Topbar */}
         <header style={s.topbar}>
-          <button onClick={() => setSidebarAberta(v => !v)} style={s.menuBtn}>☰</button>
+          <button onClick={() => setAberto(!aberto)} style={s.burger}>☰</button>
           <img src="/logo.png" alt="CompreFácil+" style={s.topLogo} />
-          {pedidosNovos > 0 && (
-            <span style={s.topBadge} className="anim-blink">{pedidosNovos} novo{pedidosNovos > 1 ? 's' : ''}</span>
-          )}
+          <div style={{ flex: 1 }} />
+          <div style={s.topLoja}>
+            <span style={s.topLojaNome}>{loja}</span>
+            <span style={s.topDot} />
+          </div>
         </header>
-        <div style={s.content}>{children}</div>
+
+        <div style={s.content}>
+          {children}
+        </div>
       </div>
     </div>
   )
 }
 
+const SIDEBAR_W = 220
+
 const s: Record<string, React.CSSProperties> = {
-  root: { display:'flex', minHeight:'100vh', fontFamily:"'Nunito', sans-serif" },
-  overlay: { position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:40 },
-  sidebar: { width:230, background:AZUL, display:'flex', flexDirection:'column', position:'fixed', top:0, left:0, bottom:0, zIndex:50, transition:'transform 0.25s' },
-  sidebarHidden: {},
-  logoWrap: { padding:'22px 18px 16px', borderBottom:'1px solid rgba(255,255,255,0.1)', display:'flex', flexDirection:'column', gap:6 },
-  logo: { height:34, objectFit:'contain', filter:'brightness(0) invert(1)' },
-  nomeParceiro: { fontSize:12, color:DOURADO, fontWeight:700 },
-  nav: { flex:1, padding:'14px 10px', display:'flex', flexDirection:'column', gap:3 },
-  navItem: { display:'flex', alignItems:'center', gap:10, padding:'11px 12px', borderRadius:10, border:'none', background:'transparent', color:'rgba(255,255,255,0.6)', fontSize:14, fontWeight:600, cursor:'pointer', width:'100%', textAlign:'left' as const, fontFamily:'inherit', transition:'background 0.15s', position:'relative' },
-  navAtivo: { background:'rgba(255,255,255,0.12)', color:'#fff' },
-  navLabel: { flex:1 },
-  badge: { background:'#EF4444', color:'#fff', fontSize:11, fontWeight:800, padding:'1px 7px', borderRadius:20 },
-  sidebarBottom: { padding:'0 12px 12px', display:'flex', flexDirection:'column', gap:8 },
-  btnWhats: { display:'block', padding:'11px', background:'#25D36620', color:'#25D366', borderRadius:10, textAlign:'center' as const, fontSize:13, fontWeight:700, textDecoration:'none', border:'1px solid #25D36630' },
-  btnSair: { padding:'10px', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, color:'rgba(255,255,255,0.5)', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' },
-  rodape: { padding:'0 14px 16px', fontSize:10, color:'rgba(255,255,255,0.2)', textAlign:'center' as const, lineHeight:1.5 },
-  main: { flex:1, marginLeft:230, display:'flex', flexDirection:'column', minHeight:'100vh' },
-  topbar: { background:'#fff', borderBottom:'1px solid #E2E8F0', padding:'0 18px', height:52, display:'flex', alignItems:'center', gap:12, position:'sticky', top:0, zIndex:30 },
-  menuBtn: { background:'none', border:'none', fontSize:22, cursor:'pointer', color:AZUL },
-  topLogo: { height:28, objectFit:'contain' },
-  topBadge: { marginLeft:'auto', background:'#EF444420', color:'#EF4444', fontSize:12, fontWeight:800, padding:'3px 10px', borderRadius:20 },
-  content: { flex:1, padding:'24px 20px', background:'#F4F6FB' },
+  shell:      { display: 'flex', minHeight: '100vh', fontFamily: "'Nunito', sans-serif", background: '#F4F6FB' },
+  sidebar:    { width: SIDEBAR_W, background: AZUL, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, transition: 'transform 0.25s ease', overflowY: 'auto' },
+  brand:      { padding: '20px 16px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' },
+  logo:       { height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)', display: 'block', marginBottom: 12 },
+  divider:    { height: 1, background: 'rgba(255,255,255,0.1)', marginBottom: 12 },
+  lojaWrap:   { display: 'flex', flexDirection: 'column', gap: 4 },
+  lojaNome:   { fontSize: 16, fontWeight: 800, color: DOURADO, lineHeight: 1.2 },
+  lojaBadge:  { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 600 },
+  dot:        { width: 7, height: 7, borderRadius: '50%', background: '#22C55E', flexShrink: 0 },
+  saldoBox:   { margin: '12px 14px', background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' },
+  saldoLabel: { fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
+  saldoValor: { fontSize: 18, fontWeight: 800, color: '#fff', marginTop: 2 },
+  nav:        { flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 2 },
+  menuItem:   { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', width: '100%', textAlign: 'left' as const, fontFamily: 'inherit', position: 'relative', transition: 'background 0.15s' },
+  menuAtivo:  { background: 'rgba(255,255,255,0.1)' },
+  menuIcon:   { fontSize: 18, flexShrink: 0 },
+  menuLabel:  { fontSize: 14, fontWeight: 700 },
+  menuBarra:  { position: 'absolute', left: 0, top: '20%', bottom: '20%', width: 3, borderRadius: 3, background: DOURADO },
+  sideFooter: { padding: '12px 14px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 8 },
+  btnWhats:   { display: 'block', padding: '10px', background: 'rgba(37,211,102,0.15)', color: '#25D366', borderRadius: 10, textAlign: 'center' as const, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: '1px solid rgba(37,211,102,0.25)' },
+  btnSair:    { padding: '10px', background: 'rgba(239,68,68,0.12)', color: '#FCA5A5', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.2s' },
+  copy:       { fontSize: 10, color: 'rgba(255,255,255,0.2)', textAlign: 'center' as const, marginTop: 4 },
+  overlay:    { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 },
+  main:       { flex: 1, marginLeft: SIDEBAR_W, display: 'flex', flexDirection: 'column', minHeight: '100vh' },
+  topbar:     { background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 20px', height: 52, display: 'flex', alignItems: 'center', gap: 14, position: 'sticky', top: 0, zIndex: 30, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' },
+  burger:     { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: AZUL, padding: 0 },
+  topLogo:    { height: 26, objectFit: 'contain' },
+  topLoja:    { display: 'flex', alignItems: 'center', gap: 8 },
+  topLojaNome:{ fontSize: 13, fontWeight: 800, color: AZUL },
+  topDot:     { width: 8, height: 8, borderRadius: '50%', background: '#22C55E' },
+  content:    { flex: 1, padding: '24px 24px', overflowY: 'auto' as const },
 }
