@@ -56,7 +56,7 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
       <audio ref={audioRef} src="/sons/alerta.mp3" preload="auto" />
 
       {/* SIDEBAR */}
-      <aside style={{ ...s.sidebar, transform: aberto ? 'translateX(0)' : 'translateX(-100%)', }}>
+      <aside style={s.sidebar}>
 
         {/* Logo + identidade */}
         <div style={s.brand}>
@@ -133,7 +133,7 @@ const SIDEBAR_W = 220
 
 const s: Record<string, React.CSSProperties> = {
   shell:      { display: 'flex', minHeight: '100vh', fontFamily: "'Nunito', sans-serif", background: '#F4F6FB' },
-  sidebar:    { width: SIDEBAR_W, background: AZUL, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, transition: 'transform 0.25s ease', overflowY: 'auto' },
+  sidebar:    { width: SIDEBAR_W, background: AZUL, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, overflowY: 'auto' },
   brand:      { padding: '20px 16px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' },
   logo:       { height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)', display: 'block', marginBottom: 12 },
   divider:    { height: 1, background: 'rgba(255,255,255,0.1)', marginBottom: 12 },
