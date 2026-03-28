@@ -65,8 +65,8 @@ export default function Vitrine() {
   }, [])
 
   useEffect(() => {
-    if (coords) carregarProdutos()
-  }, [coords])
+    carregarProdutos()
+  }, [])
 
   async function carregarProdutos() {
     setLoading(true)
@@ -84,7 +84,7 @@ export default function Vitrine() {
       .eq('produtos.ativo', true)
       .eq('parceiros.ativo', true)
 
-    if (!data || !coords) { setLoading(false); return }
+    if (!data) { setLoading(false); return }
 
     // Busca promoções ativas
     const { data: proms } = await supabase
@@ -97,7 +97,8 @@ export default function Vitrine() {
     const cards: ProdutoCard[] = (data as any[])
       .filter(e => e.produtos && e.parceiros)
       .map(e => {
-        const dist = distanciaKm(coords.lat, coords.lng, e.parceiros.lat, e.parceiros.lng)
+        const c = coords ?? { lat: -20.75, lng: -51.7 }
+        const dist = distanciaKm(c.lat, c.lng, e.parceiros.lat ?? -20.75, e.parceiros.lng ?? -51.7)
         const taxa = calcTaxaEntrega(dist)
         const sla  = calcSlaMinutos(dist)
         const conv = calcConveniencia(e.preco)
