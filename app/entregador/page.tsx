@@ -70,7 +70,7 @@ export default function EntregadorPage() {
 
   async function recusar(pedidoId: string, just?: string) {
     if (!just) {
-      await supabase.rpc('fn_incrementar_recusas_entregador', { p_usuario_id: usuarioId }).catch(() => {})
+      await supabase.rpc('fn_incrementar_recusas_entregador', { p_usuario_id: usuarioId }).then(() => {}).catch(() => {})
     }
     setModal(null)
     setJustificativa('')
