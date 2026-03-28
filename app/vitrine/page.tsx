@@ -80,6 +80,7 @@ export default function Vitrine() {
       `)
       .eq('ativo', true)
       .gt('quantidade', 0)
+      .eq('status_aprovacao', 'aprovado')
       .eq('produtos.ativo', true)
       .eq('parceiros.ativo', true)
 
