@@ -9,47 +9,40 @@ const supabase = createClient(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+
+    // MP envia type='payment' com data.id = payment_id
     if (body.type !== 'payment') return NextResponse.json({ ok: true })
 
     const payId = body.data?.id
     if (!payId) return NextResponse.json({ ok: true })
 
-    // Consulta status no MP
+    // Consulta o status real no MP
     const r = await fetch(`https://api.mercadopago.com/v1/payments/${payId}`, {
-      headers: { 'Authorization': `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
+      headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
     })
     const mp = await r.json()
 
     if (mp.status === 'approved') {
-      const { data: pedido } = await supabase.from('pedidos')
-        .select('id, parceiro_id').eq('pagamento_id', String(payId)).single()
+      // Busca pelo external_reference (pedido_id)
+      const { data: pedido } = await supabase
+        .from('pedidos')
+        .select('id, total, parceiro_id, pedido_itens ( quantidade, preco_unitario )')
+        .eq('id', mp.external_reference)
+        .single()
 
-      if (pedido) {
-        await supabase.from('pedidos').update({
-          status: 'pago',
-          pagamento_status: 'approved',
-        }).eq('id', pedido.id)
+      if (!pedido) return NextResponse.json({ ok: true })
 
-        // Atribuir parceiro mais próximo se não definido
-        if (!pedido.parceiro_id) {
-          const { data: p } = await supabase.from('pedidos').select('lat_entrega, lng_entrega').eq('id', pedido.id).single()
-          if (p) {
-            const { data: parc } = await supabase.rpc('fn_parceiro_mais_proximo', {
-              p_lat: p.lat_entrega, p_lng: p.lng_entrega, p_produtos: [],
-            })
-            if (parc?.[0]) {
-              await supabase.from('pedidos').update({ parceiro_id: parc[0].parceiro_id, status: 'em_separacao' }).eq('id', pedido.id)
-            }
-          }
-        } else {
-          await supabase.from('pedidos').update({ status: 'em_separacao' }).eq('id', pedido.id)
-        }
-      }
-    } else if (mp.status === 'cancelled' || mp.status === 'expired') {
-      await supabase.from('pedidos').update({ status: 'cancelado', pagamento_status: mp.status })
-        .eq('pagamento_id', String(payId))
+      // Atualiza status para 'pago' — parceiro verá o pedido
+      await supabase.from('pedidos').update({
+        status:           'pago',
+        pagamento_status: 'approved',
+        pagamento_id:     String(payId),
+      }).eq('id', pedido.id)
     }
 
     return NextResponse.json({ ok: true })
-  } catch { return NextResponse.json({ ok: true }) }
+  } catch (err) {
+    console.error('Webhook erro:', err)
+    return NextResponse.json({ ok: true }) // sempre 200 pro MP não retentar infinito
+  }
 }
