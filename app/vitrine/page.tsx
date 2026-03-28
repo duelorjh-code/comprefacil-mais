@@ -70,18 +70,10 @@ export default function Vitrine() {
 
   async function carregarProdutos() {
     setLoading(true)
-    // Busca estoque ativo com produto e parceiro
-    const { data } = await supabase
-      .from('estoque')
-      .select(`
-        id, preco, quantidade,
-        produtos ( id, nome, categoria, imagem_url, unidade_medida, ativo ),
-        parceiros ( id, lat, lng, ativo )
-      `)
-      .eq('ativo', true)
-      .gt('preco', 0)
-      .gt('quantidade', 0)
-      .eq('status_aprovacao', 'aprovado')
+    // Busca via API route (service role — ignora RLS)
+    const res = await fetch('/api/vitrine')
+    const json = await res.json()
+    const data = json.data
 
     if (!data) { setLoading(false); return }
 
