@@ -167,7 +167,7 @@ const s: Record<string, React.CSSProperties> = {
     background: '#fff', borderBottom: '1px solid #E2E8F0',
     padding: '0 20px', height: 56, display: 'flex',
     alignItems: 'center', gap: 12, position: 'sticky',
-    top: 0, zIndex: 30, display: 'none' as any,
+    top: 0, zIndex: 30,
   },
   menuBtn: { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: AZUL },
   topLogo: { height: 30, objectFit: 'contain' },
