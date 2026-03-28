@@ -21,16 +21,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router   = useRouter()
   const pathname = usePathname()
   const [sidebarAberta, setSidebarAberta] = useState(false)
-  const [isMobile, setIsMobile]           = useState(false)
   const [alertas, setAlertas]             = useState(0)
   const audioRef = useRef<HTMLAudioElement|null>(null)
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 768)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
 
   const tocarAlarme = useCallback(() => {
     if (!audioRef.current) {
@@ -40,9 +32,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [])
 
   useEffect(() => {
+    // Busca alertas iniciais
     supabase.from('alertas_admin').select('id', { count: 'exact', head: true })
       .eq('resolvido', false).then(({ count }) => setAlertas(count ?? 0))
 
+    // Realtime alertas
     const canal = supabase
       .channel('admin-alertas')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alertas_admin' }, () => {
@@ -59,21 +53,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.replace('/')
   }
 
-  // No mobile: sidebar escondida por padrão, aparece quando aberta
-  // No desktop: sidebar sempre visível
-  const sidebarTransform = isMobile
-    ? (sidebarAberta ? 'translateX(0)' : 'translateX(-100%)')
-    : 'translateX(0)'
-
   return (
     <div style={s.root}>
       {/* Overlay mobile */}
-      {sidebarAberta && isMobile && (
+      {sidebarAberta && (
         <div style={s.overlay} onClick={() => setSidebarAberta(false)} />
       )}
 
       {/* Sidebar */}
-      <aside style={{ ...s.sidebar, transform: sidebarTransform }}>
+      <aside style={{ ...s.sidebar, transform: sidebarAberta ? 'translateX(0)' : undefined }}>
         {/* Logo */}
         <div style={s.sidebarLogo}>
           <img src="/logo.png" alt="CompreFácil+" style={s.logo} />
@@ -106,17 +94,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Conteúdo */}
-      <div style={{ ...s.main, marginLeft: isMobile ? 0 : 240 }}>
+      <div style={s.main}>
         {/* Topbar mobile */}
-        {isMobile && (
-          <header style={s.topbar}>
-            <button onClick={() => setSidebarAberta(v => !v)} style={s.menuBtn}>☰</button>
-            <img src="/logo.png" alt="CompreFácil+" style={s.topLogo} />
-            <div style={s.topRight}>
-              {alertas > 0 && <span style={s.topBadge} className="anim-blink">{alertas} 🔔</span>}
-            </div>
-          </header>
-        )}
+        <header style={s.topbar}>
+          <button onClick={() => setSidebarAberta(v => !v)} style={s.menuBtn}>☰</button>
+          <img src="/logo.png" alt="CompreFácil+" style={s.topLogo} />
+          <div style={s.topRight}>
+            {alertas > 0 && <span style={s.topBadge} className="anim-blink">{alertas} 🔔</span>}
+          </div>
+        </header>
 
         <div style={s.content}>
           {children}
@@ -134,13 +120,14 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', flexDirection: 'column',
     position: 'fixed', top: 0, left: 0, bottom: 0,
     zIndex: 50, transition: 'transform 0.25s ease',
+    '@media (max-width: 768px)': { transform: 'translateX(-100%)' },
   },
   sidebarLogo: {
     padding: '24px 20px 20px',
     borderBottom: '1px solid rgba(255,255,255,0.1)',
     display: 'flex', flexDirection: 'column', gap: 8,
   },
-  logo: { height: 36, objectFit: 'contain', filter: 'brightness(0) invert(1)' },
+  logo: { height: 36, objectFit: 'contain' },
   adminBadge: {
     alignSelf: 'flex-start', background: DOURADO,
     color: '#fff', fontSize: 10, fontWeight: 800,
@@ -176,12 +163,12 @@ const s: Record<string, React.CSSProperties> = {
     padding: '0 16px 20px', fontSize: 10,
     color: 'rgba(255,255,255,0.2)', lineHeight: 1.5, textAlign: 'center' as const,
   },
-  main: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' },
+  main: { flex: 1, marginLeft: 240, display: 'flex', flexDirection: 'column', minHeight: '100vh' },
   topbar: {
     background: '#fff', borderBottom: '1px solid #E2E8F0',
     padding: '0 20px', height: 56, display: 'flex',
     alignItems: 'center', gap: 12, position: 'sticky',
-    top: 0, zIndex: 30,
+    top: 0, zIndex: 30, display: 'none' as any,
   },
   menuBtn: { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: AZUL },
   topLogo: { height: 30, objectFit: 'contain' },

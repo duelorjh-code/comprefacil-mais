@@ -294,7 +294,7 @@ export default function Vitrine() {
 const s: Record<string, React.CSSProperties> = {
   page: { minHeight:'100vh', background:'#F4F6FB', fontFamily:"'Nunito', sans-serif", paddingBottom:72 },
   topbar: { background:AZUL, padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:40 },
-  logo: { height:30, objectFit:'contain', filter:'brightness(0) invert(1)' },
+  logo: { height:30, objectFit:'contain' },
   topRight: { display:'flex', alignItems:'center', gap:10 },
   saudacao: { color:'rgba(255,255,255,0.8)', fontSize:13, fontWeight:600 },
   btnCarrinho: { background:'rgba(255,255,255,0.15)', border:'none', color:'#fff', padding:'7px 12px', borderRadius:10, fontSize:15, cursor:'pointer', fontFamily:'inherit', position:'relative', fontWeight:700 },

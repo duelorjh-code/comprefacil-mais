@@ -100,7 +100,7 @@ export default function EntregadorLayout({ children }: { children: React.ReactNo
 const s: Record<string, React.CSSProperties> = {
   page: { minHeight:'100vh', background:'#F4F6FB', fontFamily:"'Nunito', sans-serif", paddingBottom:72, display:'flex', flexDirection:'column' },
   header: { background:AZUL, padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:40 },
-  logo: { height:28, objectFit:'contain', filter:'brightness(0) invert(1)' },
+  logo: { height:28, objectFit:'contain' },
   toggle: { display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:20, border:'1.5px solid', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit', background:'transparent' },
   toggleDot: { width:8, height:8, borderRadius:'50%', flexShrink:0 },
   main: { flex:1, padding:'16px' },

@@ -135,7 +135,7 @@ const s: Record<string, React.CSSProperties> = {
   shell:      { display: 'flex', minHeight: '100vh', fontFamily: "'Nunito', sans-serif", background: '#F4F6FB' },
   sidebar:    { width: SIDEBAR_W, background: AZUL, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, overflowY: 'auto' },
   brand:      { padding: '20px 16px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' },
-  logo:       { height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)', display: 'block', marginBottom: 12 },
+  logo:       { height: 32, objectFit: 'contain', display: 'block', marginBottom: 12 },
   divider:    { height: 1, background: 'rgba(255,255,255,0.1)', marginBottom: 12 },
   lojaWrap:   { display: 'flex', flexDirection: 'column', gap: 4 },
   lojaNome:   { fontSize: 16, fontWeight: 800, color: DOURADO, lineHeight: 1.2 },
