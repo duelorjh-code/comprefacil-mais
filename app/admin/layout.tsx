@@ -120,7 +120,6 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', flexDirection: 'column',
     position: 'fixed', top: 0, left: 0, bottom: 0,
     zIndex: 50, transition: 'transform 0.25s ease',
-    '@media (max-width: 768px)': { transform: 'translateX(-100%)' },
   },
   sidebarLogo: {
     padding: '24px 20px 20px',
