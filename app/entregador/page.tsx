@@ -79,7 +79,7 @@ export default function EntregadorPage() {
 
   async function confirmarEntrega(pedidoId: string, codigoPedido: string) {
     if (codigo !== codigoPedido) {
-      return alert('Código incorreto. Peça ao cliente os 4 últimos dígitos do telefone dele.')
+      return alert('Código incorreto.')
     }
     await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId)
     setModalCodigo(null)
