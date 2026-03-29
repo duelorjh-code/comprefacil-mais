@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const email = `${tel}@cfm.app`
 
     const { data: users } = await supabase.auth.admin.listUsers()
-    const user = users?.users?.find(u => u.email === email)
+    const user = (users?.users ?? []).find((u: any) => u.email === email)
 
     if (!user) {
       return NextResponse.json({ erro: 'Usuário não encontrado.' }, { status: 404 })
