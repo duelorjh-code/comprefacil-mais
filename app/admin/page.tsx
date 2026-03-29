@@ -8,7 +8,9 @@ interface Metricas {
   pedidos_hoje:        number
   pedidos_andamento:   number
   faturamento_hoje:    number
-  receita_app:         number
+  receita_app:          number
+  faturamento_parceiros: number
+  faturamento_entregadores: number
   parceiros_ativos:    number
   entregadores_online: number
   alertas_abertos:     number
@@ -56,7 +58,7 @@ export default function AdminDashboard() {
     ] = await Promise.all([
       supabase.from('pedidos').select('*', { count: 'exact', head: true }).gte('criado_em', hojeISO),
       supabase.from('pedidos').select('status').not('status', 'in', '(entregue,cancelado,reembolsado)'),
-      supabase.from('pedidos').select('total, taxa_conveniencia').eq('status', 'entregue').gte('criado_em', hojeISO),
+      supabase.from('pedidos').select('total, taxa_conveniencia, valor_produtos, taxa_entrega').eq('status', 'entregue').gte('criado_em', hojeISO),
       supabase.from('parceiros').select('*', { count: 'exact', head: true }).eq('ativo', true),
       supabase.from('entregadores').select('*', { count: 'exact', head: true }).eq('status', 'online'),
       supabase.from('alertas_admin').select('*', { count: 'exact', head: true }).eq('resolvido', false),
@@ -66,6 +68,8 @@ export default function AdminDashboard() {
 
     const fat        = (faturamento ?? []).reduce((a: number, p: any) => a + (p.total ?? 0), 0)
     const receita    = (faturamento ?? []).reduce((a: number, p: any) => a + (p.taxa_conveniencia ?? 0), 0)
+    const fat_parc   = (faturamento ?? []).reduce((a: number, p: any) => a + (p.valor_produtos ?? 0), 0)
+    const fat_ent    = (faturamento ?? []).reduce((a: number, p: any) => a + (p.taxa_entrega ?? 0), 0)
     const entregues  = (faturamento ?? []).length
 
     // Agrupar por hora
@@ -92,7 +96,9 @@ export default function AdminDashboard() {
       pedidos_hoje:        pedidos_hoje        ?? 0,
       pedidos_andamento:   (pedidosAtivos      ?? []).length,
       faturamento_hoje:    fat,
-      receita_app:         receita,
+      receita_app:             receita,
+      faturamento_parceiros:   fat_parc,
+      faturamento_entregadores: fat_ent,
       parceiros_ativos:    parceiros_ativos    ?? 0,
       entregadores_online: entregadores_online ?? 0,
       alertas_abertos:     alertas_abertos     ?? 0,
@@ -115,7 +121,7 @@ export default function AdminDashboard() {
     { label: 'Em andamento',        valor: metricas!.pedidos_andamento,                  cor: '#8B5CF6', icone: '⏳' },
     { label: 'Faturamento hoje',    valor: formatBRL(metricas!.faturamento_hoje),        cor: VERDE,     icone: '💰', texto: true },
     { label: 'Receita do App',      valor: formatBRL(metricas!.receita_app),             cor: '#10B981', icone: '📊', texto: true },
-    { label: 'Ticket médio',        valor: formatBRL(metricas!.ticket_medio),            cor: DOURADO,   icone: '🎯', texto: true },
+    { label: 'Financeiro', valor: null, cor: DOURADO, icone: '💳', financeiro: true },
     { label: 'Parceiros ativos',    valor: metricas!.parceiros_ativos,                   cor: '#06B6D4', icone: '🏪' },
     { label: 'Entregadores online', valor: metricas!.entregadores_online,                cor: '#10B981', icone: '🛵' },
     { label: 'Alertas abertos',     valor: metricas!.alertas_abertos,                   cor: VERMELHO,  icone: '🔔' },
@@ -133,12 +139,26 @@ export default function AdminDashboard() {
       </div>
 
       <div style={s.cards}>
-        {cards.map((c, i) => (
+        {cards.map((c: any, i) => (
           <div key={i} style={{ ...s.card, borderTop: `3px solid ${c.cor}` }}>
             <div style={s.cardIcone}>{c.icone}</div>
-            <div style={{ ...s.cardValor, color: c.cor }}>
-              {c.texto ? c.valor : Number(c.valor).toLocaleString('pt-BR')}
-            </div>
+            {c.financeiro ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 13, color: TEXTO_MEIO, fontWeight: 700 }}>
+                  Parceiros <span style={{ float: 'right', color: AZUL, fontWeight: 800 }}>{formatBRL(metricas!.faturamento_parceiros)}</span>
+                </div>
+                <div style={{ fontSize: 13, color: TEXTO_MEIO, fontWeight: 700 }}>
+                  Entregadores <span style={{ float: 'right', color: VERDE, fontWeight: 800 }}>{formatBRL(metricas!.faturamento_entregadores)}</span>
+                </div>
+                <div style={{ fontSize: 13, color: TEXTO_MEIO, fontWeight: 700 }}>
+                  App <span style={{ float: 'right', color: DOURADO, fontWeight: 800 }}>{formatBRL(metricas!.receita_app)}</span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ ...s.cardValor, color: c.cor }}>
+                {c.texto ? c.valor : Number(c.valor).toLocaleString('pt-BR')}
+              </div>
+            )}
             <div style={s.cardLabel}>{c.label}</div>
           </div>
         ))}
