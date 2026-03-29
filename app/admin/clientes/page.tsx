@@ -16,7 +16,7 @@ export default function AdminClientes() {
       .from('clientes')
       .select(`
         id, usuario_id, criado_em,
-        perfis ( id, nome, telefone, bloqueado ),
+        perfis:usuario_id ( id, nome, telefone, bloqueado ),
         pedidos ( id, total, status, criado_em )
       `)
       .order('criado_em', { ascending: false })
@@ -83,7 +83,6 @@ export default function AdminClientes() {
 
             return (
               <div key={c.id} style={{ ...s.card, border: bloqueado ? `1.5px solid #EF4444` : `1.5px solid ${CINZA_BORDA}` }}>
-                {/* Topo */}
                 <div style={s.cardTop}>
                   <div style={s.avatar}>{inicial}</div>
                   <div style={{ flex: 1 }}>
@@ -95,7 +94,6 @@ export default function AdminClientes() {
                   )}
                 </div>
 
-                {/* Stats */}
                 <div style={s.stats}>
                   <div style={s.stat}>
                     <div style={s.statValor}>{formatBRL(totalGasto)}</div>
@@ -113,7 +111,6 @@ export default function AdminClientes() {
                   </div>
                 </div>
 
-                {/* Último pedido */}
                 {ultimoPed && (
                   <div style={s.ultimoPed}>
                     <span style={{ fontSize: 11, color: TEXTO_MEIO }}>Último pedido:</span>
@@ -129,7 +126,6 @@ export default function AdminClientes() {
                   </span>
                 </div>
 
-                {/* Ações */}
                 <div style={s.acoes}>
                   <button onClick={() => resetarSenha(c.perfis?.telefone)}
                     style={{ ...s.btn, background: '#EEF2FF', color: AZUL }}>
