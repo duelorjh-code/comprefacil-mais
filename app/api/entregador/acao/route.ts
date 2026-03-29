@@ -45,9 +45,11 @@ export async function POST(req: NextRequest) {
     if (acao === 'recusar') {
       if (justificativa === null || justificativa === undefined || justificativa === '') {
         // Sem justificativa — incrementa contador
-        await supabase.rpc('fn_incrementar_recusas_entregador', {
-          p_entregador_id: entregador_id,
-        }).then(() => {}).catch(() => {})
+        try {
+          await supabase.rpc('fn_incrementar_recusas_entregador', {
+            p_entregador_id: entregador_id,
+          })
+        } catch {}
       }
       return NextResponse.json({ ok: true })
     }
