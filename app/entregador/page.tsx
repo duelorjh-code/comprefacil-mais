@@ -27,14 +27,19 @@ export default function EntregadorPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       setUsuarioId(user.id)
-      const { data: e } = await supabase.from('entregadores').select('id').eq('usuario_id', user.id).single()
+      const { data: e } = await supabase
+        .from('entregadores')
+        .select('id')
+        .eq('usuario_id', user.id)
+        .single()
       if (!e) return
       setEntId(e.id)
       await carregar(e.id)
 
       supabase.channel('ent-live')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
-          carregar(e.id); tocarAlarme()
+          carregar(e.id)
+          tocarAlarme()
         })
         .subscribe()
     }
@@ -55,33 +60,49 @@ export default function EntregadorPage() {
     setLoading(false)
   }
 
+  async function chamarAPI(body: object) {
+    const res = await fetch('/api/entregador/acao', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return res.json()
+  }
+
   async function aceitar(pedidoId: string) {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) {
+      const data = await chamarAPI({ acao: 'aceitar', pedido_id: pedidoId, entregador_id: entId })
+      if (data.erro) return alert(data.erro)
+      carregar(entId)
+      return
+    }
     navigator.geolocation.getCurrentPosition(async pos => {
-      await supabase.from('entregadores')
-        .update({ lat_atual: pos.coords.latitude, lng_atual: pos.coords.longitude })
-        .eq('id', entId)
-      await supabase.from('pedidos')
-        .update({ entregador_id: entId, status: 'a_caminho' })
-        .eq('id', pedidoId)
+      const data = await chamarAPI({
+        acao: 'aceitar',
+        pedido_id: pedidoId,
+        entregador_id: entId,
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+      })
+      if (data.erro) return alert(data.erro)
+      carregar(entId)
+    }, async () => {
+      const data = await chamarAPI({ acao: 'aceitar', pedido_id: pedidoId, entregador_id: entId })
+      if (data.erro) return alert(data.erro)
       carregar(entId)
     })
   }
 
   async function recusar(pedidoId: string, just?: string) {
-    if (!just) {
-      try { await supabase.rpc('fn_incrementar_recusas_entregador', { p_usuario_id: usuarioId }) } catch {}
-    }
+    await chamarAPI({ acao: 'recusar', pedido_id: pedidoId, entregador_id: entId, justificativa: just ?? '' })
     setModal(null)
     setJustificativa('')
     carregar(entId)
   }
 
-  async function confirmarEntrega(pedidoId: string, codigoPedido: string) {
-    if (codigo !== codigoPedido) {
-      return alert('Código incorreto.')
-    }
-    await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId)
+  async function confirmarEntrega(pedidoId: string) {
+    const data = await chamarAPI({ acao: 'confirmar', pedido_id: pedidoId, entregador_id: entId, codigo })
+    if (data.erro) return alert(data.erro)
     setModalCodigo(null)
     setCodigo('')
     carregar(entId)
@@ -210,10 +231,8 @@ export default function EntregadorPage() {
             />
             <div style={s.modalAcoes}>
               <button onClick={() => { setModalCodigo(null); setCodigo('') }} style={s.btnCancelar}>Cancelar</button>
-              <button onClick={() => {
-                const p = pedidos.find(p => p.id === modalCodigo)
-                if (p) confirmarEntrega(modalCodigo, p.codigo_confirmacao)
-              }} style={{ ...s.btn, background: VERDE, color: '#fff' }}>
+              <button onClick={() => confirmarEntrega(modalCodigo!)}
+                style={{ ...s.btn, background: VERDE, color: '#fff' }}>
                 ✓ Confirmar
               </button>
             </div>
@@ -225,30 +244,30 @@ export default function EntregadorPage() {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  wrap:       { display: 'flex', flexDirection: 'column', gap: 16 },
-  titulo:     { fontSize: 22, fontWeight: 800, color: TEXTO },
-  loading:    { display: 'flex', justifyContent: 'center', padding: 60 },
-  spinner:    { width: 32, height: 32, borderRadius: '50%', border: `3px solid ${AZUL}30`, borderTopColor: AZUL, display: 'block' },
-  vazio:      { textAlign: 'center' as const, padding: '60px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
-  lista:      { display: 'flex', flexDirection: 'column', gap: 12 },
-  card:       { background: '#fff', borderRadius: 14, padding: '16px', boxShadow: '0 1px 8px rgba(27,47,94,0.06)', display: 'flex', flexDirection: 'column', gap: 12 },
-  cardNovo:   { boxShadow: `0 0 0 2px ${DOURADO}` },
-  novoBadge:  { background: DOURADO, color: '#fff', fontSize: 12, fontWeight: 800, padding: '6px', borderRadius: 8, textAlign: 'center' as const },
-  cardTop:    { display: 'flex', alignItems: 'center', gap: 10 },
-  id:         { fontWeight: 800, fontSize: 12, color: AZUL, fontFamily: 'monospace', flex: 1 },
-  pill:       { fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 },
-  info:       { display: 'flex', flexDirection: 'column', gap: 6 },
-  infoItem:   { display: 'flex', gap: 8 },
-  infoL:      { fontSize: 11, color: TEXTO_MEIO, fontWeight: 700, width: 70, flexShrink: 0 },
-  infoV:      { fontSize: 13, color: TEXTO, fontWeight: 600 },
-  itens:      { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
-  itemTag:    { fontSize: 11, fontWeight: 700, background: '#F4F6FB', color: TEXTO_MEIO, padding: '4px 10px', borderRadius: 20 },
-  acoes:      { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
-  btn:        { flex: 1, padding: '11px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', minWidth: 80 },
-  overlay:    { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  modalCard:  { background: '#fff', borderRadius: 20, padding: '24px', width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 16 },
-  modalTitulo:{ fontSize: 17, fontWeight: 800, color: TEXTO },
-  textarea:   { border: `1.5px solid ${CINZA_BORDA}`, borderRadius: 10, padding: '12px', fontSize: 14, color: TEXTO, resize: 'none' as const, fontFamily: 'inherit', outline: 'none', width: '100%' },
-  modalAcoes: { display: 'flex', gap: 10 },
-  btnCancelar:{ flex: 1, padding: '12px', borderRadius: 10, border: `1.5px solid ${CINZA_BORDA}`, background: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', color: TEXTO_MEIO },
+  wrap:        { display: 'flex', flexDirection: 'column', gap: 16 },
+  titulo:      { fontSize: 22, fontWeight: 800, color: TEXTO },
+  loading:     { display: 'flex', justifyContent: 'center', padding: 60 },
+  spinner:     { width: 32, height: 32, borderRadius: '50%', border: `3px solid ${AZUL}30`, borderTopColor: AZUL, display: 'block' },
+  vazio:       { textAlign: 'center' as const, padding: '60px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
+  lista:       { display: 'flex', flexDirection: 'column', gap: 12 },
+  card:        { background: '#fff', borderRadius: 14, padding: '16px', boxShadow: '0 1px 8px rgba(27,47,94,0.06)', display: 'flex', flexDirection: 'column', gap: 12 },
+  cardNovo:    { boxShadow: `0 0 0 2px ${DOURADO}` },
+  novoBadge:   { background: DOURADO, color: '#fff', fontSize: 12, fontWeight: 800, padding: '6px', borderRadius: 8, textAlign: 'center' as const },
+  cardTop:     { display: 'flex', alignItems: 'center', gap: 10 },
+  id:          { fontWeight: 800, fontSize: 12, color: AZUL, fontFamily: 'monospace', flex: 1 },
+  pill:        { fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 },
+  info:        { display: 'flex', flexDirection: 'column', gap: 6 },
+  infoItem:    { display: 'flex', gap: 8 },
+  infoL:       { fontSize: 11, color: TEXTO_MEIO, fontWeight: 700, width: 70, flexShrink: 0 },
+  infoV:       { fontSize: 13, color: TEXTO, fontWeight: 600 },
+  itens:       { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
+  itemTag:     { fontSize: 11, fontWeight: 700, background: '#F4F6FB', color: TEXTO_MEIO, padding: '4px 10px', borderRadius: 20 },
+  acoes:       { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
+  btn:         { flex: 1, padding: '11px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', minWidth: 80 },
+  overlay:     { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  modalCard:   { background: '#fff', borderRadius: 20, padding: '24px', width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 16 },
+  modalTitulo: { fontSize: 17, fontWeight: 800, color: TEXTO },
+  textarea:    { border: `1.5px solid ${CINZA_BORDA}`, borderRadius: 10, padding: '12px', fontSize: 14, color: TEXTO, resize: 'none' as const, fontFamily: 'inherit', outline: 'none', width: '100%' },
+  modalAcoes:  { display: 'flex', gap: 10 },
+  btnCancelar: { flex: 1, padding: '12px', borderRadius: 10, border: `1.5px solid ${CINZA_BORDA}`, background: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', color: TEXTO_MEIO },
 }
