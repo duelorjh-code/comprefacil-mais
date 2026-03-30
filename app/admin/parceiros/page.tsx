@@ -37,7 +37,7 @@ export default function AdminParceiros() {
   async function carregar() {
     setLoadingPag(true)
     const { data } = await supabase.from('parceiros')
-      .select('id, nome_fantasia, cidade, estado, telefone, ativo, saldo, pix_chave, horario_abertura, horario_fechamento, lat, lng, documento_url')
+      .select('id, usuario_id, nome_fantasia, cidade, estado, telefone, ativo, saldo, pix_chave, horario_abertura, horario_fechamento, lat, lng, documento_url')
       .order('criado_em', { ascending: false })
     setParceiros(data ?? [])
     setLoadingPag(false)
@@ -138,6 +138,17 @@ export default function AdminParceiros() {
     carregar()
   }
 
+  async function acessarComo(usuarioId: string) {
+    const res  = await fetch('/api/admin/impersonar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario_id: usuarioId }),
+    })
+    const json = await res.json()
+    if (json.url) window.open(json.url, '_blank')
+    else alert('Erro ao gerar acesso: ' + (json.erro ?? 'desconhecido'))
+  }
+
   const filtrados = parceiros.filter(p =>
     !busca ||
     p.nome_fantasia?.toLowerCase().includes(busca.toLowerCase()) ||
@@ -177,10 +188,16 @@ export default function AdminParceiros() {
                 <div style={s.infoItem}><span style={s.infoL}>Horário</span><span style={s.infoV}>{p.horario_abertura} – {p.horario_fechamento}</span></div>
               </div>
 
-              <button onClick={() => toggleAtivo(p.id, p.ativo)}
-                style={{ ...s.btnToggle, background: p.ativo ? '#EF444420' : '#22C55E20', color: p.ativo ? VERMELHO : VERDE }}>
-                {p.ativo ? '⏸ Forçar Offline' : '▶ Forçar Online'}
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => toggleAtivo(p.id, p.ativo)}
+                  style={{ ...s.btnToggle, flex: 1, background: p.ativo ? '#EF444420' : '#22C55E20', color: p.ativo ? VERMELHO : VERDE }}>
+                  {p.ativo ? '⏸ Forçar Offline' : '▶ Forçar Online'}
+                </button>
+                <button onClick={() => acessarComo(p.usuario_id)}
+                  style={{ ...s.btnToggle, background: '#EEF2FF', color: AZUL }}>
+                  👁 Acessar
+                </button>
+              </div>
             </div>
           ))}
         </div>
