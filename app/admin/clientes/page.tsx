@@ -12,15 +12,9 @@ export default function AdminClientes() {
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
-    const { data } = await supabase
-      .from('clientes')
-      .select(`
-        id, usuario_id, criado_em,
-        perfis:usuario_id ( id, nome, telefone, bloqueado ),
-        pedidos ( id, total, status, criado_em )
-      `)
-      .order('criado_em', { ascending: false })
-    setClientes(data ?? [])
+    const res  = await fetch('/api/admin/clientes')
+    const json = await res.json()
+    setClientes(json.data ?? [])
     setLoading(false)
   }
 

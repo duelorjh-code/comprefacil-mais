@@ -14,7 +14,7 @@ const MENU = [
   { href: '/admin/estoque',      icon: '📦', label: 'Estoque'     },
   { href: '/admin/entregadores', icon: '🛵', label: 'Entregadores'},
   { href: '/admin/clientes',     icon: '👥', label: 'Clientes'    },
-  { href: '/admin/alertas',      icon: '🔔', label: 'Alertas'     },
+  { href: '/admin/alertas',      icon: '🗺️', label: 'Mapa Estratégico'},
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

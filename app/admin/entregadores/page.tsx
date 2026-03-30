@@ -13,10 +13,9 @@ export default function AdminEntregadores() {
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
-    const { data } = await supabase.from('entregadores')
-      .select('id, cpf, tipo_veiculo, status, validado, lat_atual, lng_atual, usuario_id, perfis:usuario_id ( id, nome, telefone, bloqueado, total_recusas, motivo_bloqueio )')
-      .order('criado_em', { ascending: false })
-    setLista(data ?? [])
+    const res  = await fetch('/api/admin/entregadores')
+    const json = await res.json()
+    setLista(json.data ?? [])
     setLoading(false)
   }
 
