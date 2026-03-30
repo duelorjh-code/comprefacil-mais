@@ -9,18 +9,20 @@ const admin = createClient(
 
 export async function GET() {
   const { data, error } = await admin
-    .from('clientes')
+    .from('pedidos')
     .select(`
-      id, usuario_id, criado_em,
-      perfis:usuario_id ( id, nome, telefone, bloqueado, role ),
-      pedidos ( id, total, status, criado_em )
+      id, status, total, distancia_km, codigo_confirmacao, criado_em, endereco_entrega,
+      clientes (
+        perfis:usuario_id ( nome, telefone )
+      ),
+      parceiros ( nome_fantasia ),
+      entregadores (
+        perfis:usuario_id ( nome )
+      )
     `)
     .order('criado_em', { ascending: false })
+    .limit(200)
 
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 })
-
-  // Filtra apenas perfis com role = 'cliente'
-  const filtrado = (data ?? []).filter((c: any) => c.perfis?.role === 'cliente')
-
-  return NextResponse.json({ data: filtrado })
+  return NextResponse.json({ data })
 }

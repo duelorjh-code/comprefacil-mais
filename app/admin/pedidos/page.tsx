@@ -34,16 +34,9 @@ export default function AdminPedidos() {
   }, [])
 
   async function carregar() {
-    const { data } = await supabase.from('pedidos')
-      .select(`
-        id, status, total, distancia_km, codigo_confirmacao, criado_em, endereco_entrega,
-        clientes ( perfis ( nome, telefone ) ),
-        parceiros ( nome_fantasia ),
-        entregadores ( perfis ( nome ) )
-      `)
-      .order('criado_em', { ascending: false })
-      .limit(200)
-    if (data) setPedidos(data)
+    const res  = await fetch('/api/admin/pedidos')
+    const json = await res.json()
+    if (json.data) setPedidos(json.data)
     setLoading(false)
   }
 
