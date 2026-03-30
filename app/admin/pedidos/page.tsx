@@ -34,7 +34,7 @@ export default function AdminPedidos() {
   }, [])
 
   async function carregar() {
-    const res  = await fetch('/api/admin/pedidos')
+    const res  = await fetch('/api/admin/pedidos', { cache: 'no-store' })
     const json = await res.json()
     if (json.data) setPedidos(json.data)
     setLoading(false)
