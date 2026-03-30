@@ -16,26 +16,39 @@ const MENU = [
 export default function ParceiroLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const [loja, setLoja]       = useState('')
-  const [saldo, setSaldo]     = useState(0)
-  const [aberto, setAberto]   = useState(false)
+  const [loja, setLoja]   = useState('')
+  const [saldo, setSaldo] = useState(0)
+  const [aberto, setAberto] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
     async function carregar() {
-      const asUserId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('as') : null
-      const userId = asUserId ?? (await supabase.auth.getUser()).data.user?.id
-      if (!userId) { router.replace('/login'); return }
+      // Salva ?as= no sessionStorage para persistir nas navegações
+      const params  = new URLSearchParams(window.location.search)
+      const asParam = params.get('as')
+      if (asParam) sessionStorage.setItem('parceiro_as', asParam)
+      const asUserId = asParam ?? sessionStorage.getItem('parceiro_as')
+
+      if (asUserId) {
+        // Admin acessando como parceiro — busca via API route (service_role)
+        const res  = await fetch(`/api/admin/parceiro-dados?usuario_id=${asUserId}`)
+        const json = await res.json()
+        if (json.data) { setLoja(json.data.nome_fantasia); setSaldo(json.data.saldo ?? 0) }
+        return
+      }
+
+      // Fluxo normal do parceiro
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.replace('/login'); return }
       const { data: p } = await supabase
         .from('parceiros')
         .select('nome_fantasia, saldo, ativo')
-        .eq('usuario_id', userId)
+        .eq('usuario_id', user.id)
         .single()
       if (p) { setLoja(p.nome_fantasia); setSaldo(p.saldo ?? 0) }
     }
     carregar()
 
-    // Som alerta novos pedidos
     const canal = supabase.channel('parceiro-layout')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, () => {
         try { audioRef.current?.play().catch(() => {}) } catch {}
@@ -45,6 +58,7 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
   }, [])
 
   async function handleLogout() {
+    sessionStorage.removeItem('parceiro_as')
     await logout()
     router.replace('/')
   }
@@ -56,10 +70,7 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
     <div style={s.shell}>
       <audio ref={audioRef} src="/sons/alerta.mp3" preload="auto" />
 
-      {/* SIDEBAR */}
       <aside style={s.sidebar}>
-
-        {/* Logo + identidade */}
         <div style={s.brand}>
           <img src="/logo.png" alt="CompreFácil+" style={s.logo} />
           <div style={s.divider} />
@@ -72,13 +83,11 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
           </div>
         </div>
 
-        {/* Saldo rápido */}
         <div style={s.saldoBox}>
           <div style={s.saldoLabel}>Saldo disponível</div>
           <div style={s.saldoValor}>R$ {saldo.toFixed(2).replace('.', ',')}</div>
         </div>
 
-        {/* Menu */}
         <nav style={s.nav}>
           {MENU.map(item => {
             const ativo = isAtivo(item.href)
@@ -93,7 +102,6 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
           })}
         </nav>
 
-        {/* Rodapé sidebar */}
         <div style={s.sideFooter}>
           <a href={linkWhats('Olá, sou parceiro CompreFácil+ e preciso de ajuda.')}
             target="_blank" rel="noreferrer" style={s.btnWhats}>
@@ -106,12 +114,9 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
         </div>
       </aside>
 
-      {/* Overlay mobile */}
       {aberto && <div style={s.overlay} onClick={() => setAberto(false)} />}
 
-      {/* CONTEÚDO */}
       <div style={s.main}>
-        {/* Topbar */}
         <header style={s.topbar}>
           <button onClick={() => setAberto(!aberto)} style={s.burger}>☰</button>
           <img src="/logo.png" alt="CompreFácil+" style={s.topLogo} />
@@ -121,10 +126,7 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
             <span style={s.topDot} />
           </div>
         </header>
-
-        <div style={s.content}>
-          {children}
-        </div>
+        <div style={s.content}>{children}</div>
       </div>
     </div>
   )
