@@ -34,7 +34,7 @@ export default function AdminPedidos() {
   }, [])
 
   async function carregar() {
-    const res  = await fetch('/api/admin/pedidos', { cache: 'no-store' })
+    const res  = await fetch('/api/admin/pedidos')
     const json = await res.json()
     if (json.data) setPedidos(json.data)
     setLoading(false)
@@ -42,13 +42,18 @@ export default function AdminPedidos() {
 
   async function atualizarStatus(id: string, status: string) {
     setAtualizando(id + status)
-    await fetch('/api/admin/pedidos/status', {
+    const res = await fetch('/api/admin/pedidos/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pedido_id: id, status }),
     })
-    await carregar()
+    if (res.ok) {
+      // Atualiza estado local imediatamente sem depender da réplica
+      setPedidos(prev => prev.map(p => p.id === id ? { ...p, status } : p))
+    }
     setAtualizando(null)
+    // Sincroniza com banco após 2s
+    setTimeout(carregar, 2000)
   }
 
   async function excluir(id: string) {

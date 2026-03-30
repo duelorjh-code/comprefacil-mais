@@ -2,14 +2,16 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
-
-const admin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+export const revalidate = 0
 
 export async function GET() {
+  // Cria client novo a cada request para evitar réplica cacheada
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
   const { data, error } = await admin
     .from('pedidos')
     .select(`
@@ -26,5 +28,13 @@ export async function GET() {
     .limit(200)
 
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 })
-  return NextResponse.json({ data })
+
+  return new NextResponse(JSON.stringify({ data, ts: Date.now() }), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    }
+  })
 }
