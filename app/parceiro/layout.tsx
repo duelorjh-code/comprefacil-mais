@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { logout } from '@/lib/auth'
 import { AZUL, DOURADO, linkWhats } from '@/lib/constants'
@@ -14,10 +14,8 @@ const MENU = [
 ]
 
 export default function ParceiroLayout({ children }: { children: React.ReactNode }) {
-  const router       = useRouter()
-  const pathname     = usePathname()
-  const searchParams = useSearchParams()
-  const asUserId     = searchParams.get('as') // impersonar parceiro via admin
+  const router   = useRouter()
+  const pathname = usePathname()
   const [loja, setLoja]       = useState('')
   const [saldo, setSaldo]     = useState(0)
   const [aberto, setAberto]   = useState(false)
@@ -25,6 +23,7 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
 
   useEffect(() => {
     async function carregar() {
+      const asUserId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('as') : null
       const userId = asUserId ?? (await supabase.auth.getUser()).data.user?.id
       if (!userId) { router.replace('/login'); return }
       const { data: p } = await supabase
