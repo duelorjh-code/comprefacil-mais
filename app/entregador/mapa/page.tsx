@@ -27,15 +27,10 @@ export default function EntregadorMapa() {
     if (!e) return
     setEntId(e.id)
 
-    // Busca pedido ativo
-    const { data: p } = await supabase.from('pedidos')
-      .select(`id, endereco_entrega, lat_entrega, lng_entrega, codigo_confirmacao,
-               parceiros ( nome_fantasia, endereco, numero, lat, lng ),
-               clientes ( perfis ( nome, telefone ) )`)
-      .eq('entregador_id', e.id)
-      .eq('status', 'a_caminho')
-      .single()
-    if (p) setPedido(p)
+    // Busca pedido ativo via API com service role
+    const res = await fetch(`/api/entregador/pedidos?entregador_id=${e.id}&status=a_caminho`)
+    const lista = await res.json()
+    if (Array.isArray(lista) && lista.length > 0) setPedido(lista[0])
 
     // GPS contínuo
     if (navigator.geolocation) {
@@ -111,7 +106,11 @@ export default function EntregadorMapa() {
         <div style={s.info}>
           <div style={s.infoRow}>
             <span style={s.infoL}>📦 Retirar em</span>
-            <span style={s.infoV}>{pedido.parceiros?.nome_fantasia} — {pedido.parceiros?.endereco}, {pedido.parceiros?.numero}</span>
+            <span style={s.infoV}>
+              {pedido.parceiros?.nome_fantasia
+                ? `${pedido.parceiros.nome_fantasia} — ${pedido.parceiros.endereco ?? ''}, ${pedido.parceiros.numero ?? ''}`.trim().replace(/,\s*$/, '')
+                : '—'}
+            </span>
           </div>
           <div style={s.infoRow}>
             <span style={s.infoL}>🏠 Entregar em</span>
@@ -119,13 +118,9 @@ export default function EntregadorMapa() {
           </div>
           <div style={s.infoRow}>
             <span style={s.infoL}>👤 Cliente</span>
-            <span style={s.infoV}>{pedido.clientes?.perfis?.nome}</span>
+            <span style={s.infoV}>{pedido.clientes?.nome ?? '—'}</span>
           </div>
-          <div style={s.infoRow}>
-            <span style={s.infoL}>🔑 Código</span>
-            <span style={{ ...s.infoV, fontWeight:900, letterSpacing:4, color:AZUL }}>{pedido.codigo_confirmacao}</span>
-          </div>
-          <a href={`https://wa.me/55${pedido.clientes?.perfis?.telefone?.replace(/\D/g,'')}?text=Olá, sou o entregador do seu pedido CompreFácil+. Estou a caminho!`}
+          <a href={`https://wa.me/55${pedido.clientes?.telefone?.replace(/\D/g,'')}?text=Olá, sou o entregador do seu pedido CompreFácil+. Estou a caminho!`}
             target="_blank" rel="noreferrer" style={s.btnWhats}>
             💬 WhatsApp cliente
           </a>

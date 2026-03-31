@@ -8,7 +8,6 @@ import { AZUL, DOURADO, VERDE, VERMELHO, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatB
 export default function EntregadorPage() {
   const router = useRouter()
   const [entId, setEntId]         = useState('')
-  const [usuarioId, setUsuarioId] = useState('')
   const [pedidos, setPedidos]     = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
   const [modal, setModal]         = useState<string | null>(null)
@@ -26,7 +25,6 @@ export default function EntregadorPage() {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      setUsuarioId(user.id)
       const { data: e } = await supabase
         .from('entregadores')
         .select('id')
@@ -47,16 +45,9 @@ export default function EntregadorPage() {
   }, [tocarAlarme])
 
   async function carregar(eid: string) {
-    const { data } = await supabase.from('pedidos')
-      .select(`
-        id, status, total, taxa_entrega, distancia_km, endereco_entrega, codigo_confirmacao,
-        pedido_itens ( quantidade, produtos ( nome ) ),
-        parceiros ( nome_fantasia, endereco, numero, lat, lng ),
-        clientes ( perfis ( nome, telefone ) )
-      `)
-      .or(`status.eq.pronto,and(entregador_id.eq.${eid},status.eq.a_caminho)`)
-      .order('criado_em', { ascending: false })
-    setPedidos(data ?? [])
+    const res = await fetch(`/api/entregador/pedidos?entregador_id=${eid}`)
+    const data = await res.json()
+    setPedidos(Array.isArray(data) ? data : [])
     setLoading(false)
   }
 
@@ -146,11 +137,15 @@ export default function EntregadorPage() {
                 </div>
                 <div style={s.infoItem}>
                   <span style={s.infoL}>Retirar em</span>
-                  <span style={s.infoV}>{p.parceiros?.endereco ?? '—'}, {p.parceiros?.numero ?? ''}</span>
+                  <span style={s.infoV}>
+                    {p.parceiros?.nome_fantasia
+                      ? `${p.parceiros.nome_fantasia} — ${p.parceiros.endereco ?? ''}, ${p.parceiros.numero ?? ''}`.trim().replace(/,\s*$/, '')
+                      : '—'}
+                  </span>
                 </div>
                 <div style={s.infoItem}>
                   <span style={s.infoL}>Cliente</span>
-                  <span style={s.infoV}>{p.clientes?.perfis?.nome ?? '—'}</span>
+                  <span style={s.infoV}>{p.clientes?.nome ?? '—'}</span>
                 </div>
                 <div style={s.infoItem}>
                   <span style={s.infoL}>Distância</span>
@@ -181,7 +176,7 @@ export default function EntregadorPage() {
                   <button onClick={() => router.push('/entregador/mapa')} style={{ ...s.btn, background: '#EEF2FF', color: AZUL }}>
                     🗺️ Ver mapa
                   </button>
-                  <a href={`tel:${p.clientes?.perfis?.telefone}`}
+                  <a href={`tel:${p.clientes?.telefone}`}
                     style={{ ...s.btn, background: '#22C55E20', color: VERDE, textDecoration: 'none', textAlign: 'center' as const }}>
                     📞 Cliente
                   </a>
@@ -220,7 +215,7 @@ export default function EntregadorPage() {
           <div style={s.modalCard} className="anim-fadeUp">
             <h3 style={s.modalTitulo}>Confirmar entrega</h3>
             <p style={{ fontSize: 13, color: TEXTO_MEIO }}>
-              Digite o código de confirmação.
+              Digite o código de confirmação informado pelo cliente.
             </p>
             <input
               style={{ ...s.textarea, textAlign: 'center', fontSize: 28, fontWeight: 800, letterSpacing: 8, height: 'auto', padding: '16px' }}

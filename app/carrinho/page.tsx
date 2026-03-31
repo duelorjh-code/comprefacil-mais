@@ -62,8 +62,13 @@ export default function CarrinhoPage() {
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
         const d   = await res.json()
-        const end = `${d.address?.road ?? ''}, ${d.address?.house_number ?? ''} - ${d.address?.suburb ?? d.address?.neighbourhood ?? ''}, ${d.address?.city ?? d.address?.town ?? ''}`
-        setEndGps(end.trim().replace(/^,|,$/g, ''))
+        const partes = [
+          d.address?.road,
+          d.address?.house_number,
+          d.address?.suburb ?? d.address?.neighbourhood,
+          d.address?.city ?? d.address?.town,
+        ].filter(Boolean)
+        setEndGps(partes.join(', '))
       } catch { setEndGps(`${lat.toFixed(5)}, ${lng.toFixed(5)}`) }
       setLoadingGps(false)
     }, () => {
