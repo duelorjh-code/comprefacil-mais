@@ -66,7 +66,7 @@ export default function Vitrine() {
 
   useEffect(() => {
     carregarProdutos()
-  }, [])
+  }, [coords])
 
   async function carregarProdutos() {
     setLoading(true)
