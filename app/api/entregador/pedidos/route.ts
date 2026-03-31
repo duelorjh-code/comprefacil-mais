@@ -4,15 +4,15 @@ import { createClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export async function GET(req: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
   const { searchParams } = new URL(req.url)
   const entregador_id = searchParams.get('entregador_id')
-  const status        = searchParams.get('status') // opcional: filtrar por status específico
+  const status        = searchParams.get('status')
 
   if (!entregador_id) {
     return NextResponse.json({ erro: 'entregador_id obrigatório.' }, { status: 400 })
