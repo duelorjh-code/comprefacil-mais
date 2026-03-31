@@ -64,7 +64,7 @@ const s: Record<string, React.CSSProperties> = {
   bg: {
     position: 'fixed',
     inset: 0,
-    background: `linear-gradient(160deg, ${AZUL} 0%, #0d1a36 100%)`,
+    background: `linear-gradient(160deg, ${AZUL} 0%, #dfa916 100%)`,
     zIndex: 0,
   },
   orb1: {
