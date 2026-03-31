@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'CompreFácil+',
-  description: 'Sua conveniência à um clique de distância.',
+  description: 'MGM - Marcelo Moura',
   manifest: '/manifest.json',
   icons: {
     icon: '/icons/icon-192.png',
