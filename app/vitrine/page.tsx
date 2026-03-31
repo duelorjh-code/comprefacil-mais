@@ -151,7 +151,13 @@ export default function Vitrine() {
         <div style={s.topRight}>
           {usuario && <span style={s.saudacao}>Olá, {usuario.nome?.split(' ')[0]} 👋</span>}
           <button onClick={() => router.push('/carrinho')} style={s.btnCarrinho}>
-            🛒 {totalCarrinho > 0 && <span style={s.badge}>{totalCarrinho}</span>}
+            🛒
+            {totalCarrinho > 0 && <span style={s.badge}>{totalCarrinho}</span>}
+            {carrinho.length > 0 && (
+              <span style={{ fontSize:11, marginLeft:4, opacity:0.9 }}>
+                {formatBRL(carrinho.reduce((a:number, i:any) => a + i.preco * i.quantidade, 0))}
+              </span>
+            )}
           </button>
         </div>
       </header>
@@ -247,8 +253,7 @@ export default function Vitrine() {
         {[
           { icon:'🏠', label:'Início',   href:'/vitrine' },
           { icon:'🛒', label:'Carrinho', href:'/carrinho', badge: totalCarrinho },
-          { icon:'📦', label:'Pedido',   href:'/pedido' },
-          { icon:'👤', label:'Perfil',   href:'/perfil' },
+          { icon:'👤', label:'Pedido',   href:'/perfil' },
         ].map(item => (
           <button key={item.href} onClick={() => router.push(item.href)} style={s.navBtn}>
             <span style={{ position:'relative' }}>

@@ -41,7 +41,7 @@ export default function CarrinhoPage() {
       if (p?.status === 'pago') {
         clearInterval(iv)
         localStorage.removeItem('cfm_carrinho')
-        router.replace(`/pedido?id=${pedidoId}`)
+        router.replace('/perfil')
       }
     }, 3000)
     return () => clearInterval(iv)
@@ -330,7 +330,7 @@ export default function CarrinhoPage() {
             </div>
 
             {/* Resumo */}
-            {enderecoValido() && (
+            {carrinho.length > 0 && (
               <div style={s.card}>
                 <div style={s.resumoRow}><span>Subtotal</span><span>{formatBRL(valorProdutos)}</span></div>
                 <div style={s.resumoRow}><span>Entrega ({dist > 0 ? dist.toFixed(1) : '~2'}km)</span><span>{formatBRL(taxaEntrega)}</span></div>
@@ -390,8 +390,7 @@ export default function CarrinhoPage() {
         {[
           { icon:'🏠', label:'Início',   href:'/vitrine' },
           { icon:'🛒', label:'Carrinho', href:'/carrinho' },
-          { icon:'📦', label:'Pedido',   href:'/pedido' },
-          { icon:'👤', label:'Perfil',   href:'/perfil' },
+          { icon:'👤', label:'Pedido',   href:'/perfil' },
         ].map(item => (
           <button key={item.href} onClick={() => router.push(item.href)} style={s.navBtn}>
             <span style={{ fontSize:22 }}>{item.icon}</span>
