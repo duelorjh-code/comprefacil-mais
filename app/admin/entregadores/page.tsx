@@ -20,21 +20,26 @@ export default function AdminEntregadores() {
   }
 
   async function toggleOnline(id: string, status: string) {
-    const novo = status === 'online' ? 'offline' : 'online'
-    await supabase.from('entregadores').update({ status: novo }).eq('id', id)
+    await fetch('/api/admin/entregadores', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'toggleOnline', id, status }),
+    })
     carregar()
   }
 
   async function validar(id: string, val: boolean) {
-    await supabase.from('entregadores').update({ validado: val }).eq('id', id)
+    await fetch('/api/admin/entregadores', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'validar', id, validado: val }),
+    })
     carregar()
   }
 
   async function bloquear(usuarioId: string, bloqueado: boolean) {
-    await supabase.from('perfis').update({
-      bloqueado: !bloqueado,
-      motivo_bloqueio: !bloqueado ? 'Bloqueado pelo Admin.' : null,
-    }).eq('id', usuarioId)
+    await fetch('/api/admin/entregadores', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'bloquear', usuario_id: usuarioId, bloqueado }),
+    })
     carregar()
   }
 
