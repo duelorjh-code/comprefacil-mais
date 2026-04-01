@@ -31,22 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     audioRef.current.play().catch(() => {})
   }, [])
 
-  useEffect(() => {
-    // Busca alertas iniciais
-    supabase.from('alertas_admin').select('id', { count: 'exact', head: true })
-      .eq('resolvido', false).then(({ count }) => setAlertas(count ?? 0))
-
-    // Realtime alertas
-    const canal = supabase
-      .channel('admin-alertas')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alertas_admin' }, () => {
-        setAlertas(v => v + 1)
-        tocarAlarme()
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(canal) }
-  }, [tocarAlarme])
+  useEffect(() => {}, [tocarAlarme])
 
   async function handleLogout() {
     await logout()
