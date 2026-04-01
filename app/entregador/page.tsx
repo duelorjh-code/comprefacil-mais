@@ -145,7 +145,7 @@ export default function EntregadorPage() {
                 </div>
                 <div style={s.infoItem}>
                   <span style={s.infoL}>Cliente</span>
-                  <span style={s.infoV}>{p.clientes?.nome ?? '—'}</span>
+                  <span style={s.infoV}>{p.clientes?.perfis?.nome ?? '—'}</span>
                 </div>
                 <div style={s.infoItem}>
                   <span style={s.infoL}>Distância</span>
@@ -176,7 +176,7 @@ export default function EntregadorPage() {
                   <button onClick={() => router.push('/entregador/mapa')} style={{ ...s.btn, background: '#EEF2FF', color: AZUL }}>
                     🗺️ Ver mapa
                   </button>
-                  <a href={`tel:${p.clientes?.telefone}`}
+                  <a href={`tel:${p.clientes?.perfis?.telefone}`}
                     style={{ ...s.btn, background: '#22C55E20', color: VERDE, textDecoration: 'none', textAlign: 'center' as const }}>
                     📞 Cliente
                   </a>

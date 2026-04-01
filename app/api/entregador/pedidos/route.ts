@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       lat_entrega, lng_entrega,
       pedido_itens ( quantidade, produtos ( nome ) ),
       parceiros ( nome_fantasia, endereco, numero, lat, lng ),
-      clientes ( nome, telefone )
+      clientes ( perfis:usuario_id ( nome, telefone ) )
     `)
     .order('criado_em', { ascending: false })
 
