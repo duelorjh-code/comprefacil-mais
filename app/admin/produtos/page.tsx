@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
 
-const CATEGORIAS = ['alimentos','bebidas','higiene','limpeza','farmacia','outros']
-const CAT_ICONS: Record<string,string> = { alimentos:'🥗', bebidas:'🥤', higiene:'🧴', limpeza:'🧹', farmacia:'💊', outros:'📦' }
+const CATEGORIAS = ['cervejas','vinhos','destilados','whisky','energeticos','isotonico','sucos','refrigerantes','aguas_com_gas','aguas_sem_gas','alimentos','outros']
+const CAT_ICONS: Record<string,string> = { cervejas:'🍺', vinhos:'🍷', destilados:'🥃', whisky:'🥃', energeticos:'⚡', isotonico:'💧', sucos:'🧃', refrigerantes:'🥤', aguas_com_gas:'💧', aguas_sem_gas:'💧', alimentos:'🥗', outros:'📦' }
 
 interface ProdutoImport {
   nome: string; descricao: string; categoria: string
