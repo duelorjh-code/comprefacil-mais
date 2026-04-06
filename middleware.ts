@@ -14,6 +14,9 @@ const ROTAS_ROLE: Record<string, string> = {
   '/perfil':     'cliente',
 }
 
+const API_ADMIN_PREFIXO   = '/api/admin/'
+const API_ENTREGADOR_ACAO = '/api/entregador/acao'
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -37,6 +40,44 @@ export async function middleware(request: NextRequest) {
 
   const { data: { session } } = await supabase.auth.getSession()
 
+  // ── Proteção das rotas de API /api/admin/* ───────────────────
+  if (pathname.startsWith(API_ADMIN_PREFIXO)) {
+    if (!session) {
+      return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
+    }
+    const { data: perfil } = await supabase
+      .from('perfis')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+    if (!perfil || perfil.role !== 'admin') {
+      return NextResponse.json({ erro: 'Acesso negado.' }, { status: 403 })
+    }
+    return response
+  }
+
+  // ── Proteção da rota /api/entregador/acao ────────────────────
+  if (pathname === API_ENTREGADOR_ACAO) {
+    if (!session) {
+      return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
+    }
+    const { data: perfil } = await supabase
+      .from('perfis')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+    if (!perfil || perfil.role !== 'entregador') {
+      return NextResponse.json({ erro: 'Acesso negado.' }, { status: 403 })
+    }
+    return response
+  }
+
+  // ── Demais rotas de API: RLS do Supabase protege ─────────────
+  if (pathname.startsWith('/api/')) {
+    return response
+  }
+
+  // ── Rotas de página: exigem sessão ───────────────────────────
   if (!session) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
@@ -74,5 +115,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png|icons|sons|api).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png|icons|sons).*)'],
 }

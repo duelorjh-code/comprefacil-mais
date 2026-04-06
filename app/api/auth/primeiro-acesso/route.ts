@@ -29,9 +29,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ erro: 'Senha já foi definida. Use o login normal.' }, { status: 400 })
     }
 
-    // Busca o usuário no Auth pelo email
-    const { data: listData } = await supabaseAdmin.auth.admin.listUsers()
-    const user = (listData?.users ?? []).find((u: any) => u.email === email)
+    // Busca paginada — suporta mais de 1000 usuários
+    let user: any = null
+    let page = 1
+    while (!user) {
+      const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+      if (!listData?.users?.length) break
+      user = listData.users.find((u: any) => u.email === email)
+      if (listData.users.length < 1000) break
+      page++
+    }
 
     if (!user) {
       return NextResponse.json({ erro: 'Usuário não encontrado.' }, { status: 400 })

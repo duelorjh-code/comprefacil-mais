@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
   if (status) {
     query = query.eq('status', status).eq('entregador_id', entregador_id)
   } else {
+    // Apenas entregadores validados podem ver pedidos prontos
     query = query.or(`status.eq.pronto,and(entregador_id.eq.${entregador_id},status.eq.a_caminho)`)
   }
 

@@ -23,15 +23,29 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
 
   useEffect(() => {
     async function carregar() {
-      // Salva ?as= no sessionStorage para persistir nas navegações
-      const params  = new URLSearchParams(window.location.search)
-      const asParam = params.get('as')
-      if (asParam) sessionStorage.setItem('parceiro_as', asParam)
-      const asUserId = asParam ?? sessionStorage.getItem('parceiro_as')
+      const params        = new URLSearchParams(window.location.search)
+      const tokenParam    = params.get('impersonar')
 
-      if (asUserId) {
-        // Admin acessando como parceiro — busca via API route (service_role)
-        const res  = await fetch(`/api/admin/parceiro-dados?usuario_id=${asUserId}`)
+      // Limpa params da URL sem recarregar a página
+      if (tokenParam) {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('impersonar')
+        window.history.replaceState({}, '', url.toString())
+      }
+
+      // Persiste o token no sessionStorage para navegações internas
+      if (tokenParam) sessionStorage.setItem('parceiro_impersonar', tokenParam)
+      const token = tokenParam ?? sessionStorage.getItem('parceiro_impersonar')
+
+      if (token) {
+        // Valida o token via API antes de usar — a API verifica HMAC e expiração
+        const res  = await fetch(`/api/admin/parceiro-dados?token=${encodeURIComponent(token)}`)
+        if (!res.ok) {
+          // Token inválido ou expirado — limpa e redireciona para o login do admin
+          sessionStorage.removeItem('parceiro_impersonar')
+          router.replace('/admin')
+          return
+        }
         const json = await res.json()
         if (json.data) { setLoja(json.data.nome_fantasia); setSaldo(json.data.saldo ?? 0) }
         return
@@ -58,7 +72,7 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
   }, [])
 
   async function handleLogout() {
-    sessionStorage.removeItem('parceiro_as')
+    sessionStorage.removeItem('parceiro_impersonar')
     await logout()
     router.replace('/')
   }

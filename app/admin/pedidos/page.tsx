@@ -58,8 +58,16 @@ export default function AdminPedidos() {
 
   async function excluir(id: string) {
     if (!confirm('Excluir este pedido permanentemente?')) return
-    await supabase.from('pedido_itens').delete().eq('pedido_id', id)
-    await supabase.from('pedidos').delete().eq('id', id)
+    const res = await fetch('/api/admin/pedidos/excluir', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pedido_id: id }),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      alert('Erro ao excluir: ' + (data.erro ?? 'tente novamente.'))
+      return
+    }
     carregar()
   }
 

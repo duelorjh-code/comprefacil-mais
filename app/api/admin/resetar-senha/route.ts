@@ -16,19 +16,35 @@ export async function POST(req: NextRequest) {
     const tel   = telefone.replace(/\D/g, '')
     const email = `${tel}@cfm.app`
 
-    const { data: users } = await supabase.auth.admin.listUsers()
-    const user = (users?.users ?? []).find((u: any) => u.email === email)
+    // Busca direta pelo email usando filtro — evita carregar todos os usuários
+    const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    if (error) return NextResponse.json({ erro: error.message }, { status: 500 })
+
+    // Busca paginada até encontrar o usuário
+    let user = (data?.users ?? []).find((u: any) => u.email === email)
+
+    if (!user) {
+      // Segunda página caso haja mais de 1000 usuários
+      let page = 2
+      while (!user) {
+        const { data: next } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+        if (!next?.users?.length) break
+        user = next.users.find((u: any) => u.email === email)
+        if (next.users.length < 1000) break
+        page++
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ erro: 'Usuário não encontrado.' }, { status: 404 })
     }
 
-    const { error } = await supabase.auth.admin.updateUserById(user.id, {
+    const { error: errSenha } = await supabase.auth.admin.updateUserById(user.id, {
       password: nova_senha,
     })
 
-    if (error) {
-      return NextResponse.json({ erro: error.message }, { status: 500 })
+    if (errSenha) {
+      return NextResponse.json({ erro: errSenha.message }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true })

@@ -45,15 +45,9 @@ export default function EntregadorLayout({ children }: { children: React.ReactNo
     }
     init()
 
-    // Força offline ao fechar a aba/browser
-    const handleUnload = () => {
-      if (entId) {
-        navigator.sendBeacon('/api/entregador/force-offline', JSON.stringify({ entregador_id: entId }))
-      }
-    }
-    window.addEventListener('beforeunload', handleUnload)
+    // O cron pg_cron 'force-offline-entregadores' (a cada minuto) garante
+    // que entregadores sem atividade recente sejam marcados offline automaticamente.
     return () => {
-      window.removeEventListener('beforeunload', handleUnload)
       pararHeartbeat()
     }
   }, [tocarAlarme])

@@ -12,29 +12,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
   }
 
-  const { data: parceiros } = await supabase
-    .from('parceiros')
-    .select('usuario_id, saldo, pix_chave')
-    .gt('saldo', 0)
+  // Chama a função do banco que já tem a lógica correta e atômica
+  const { error } = await supabase.rpc('fn_processar_saques_automaticos')
 
-  const { data: entregadores } = await supabase
-    .from('entregadores')
-    .select('usuario_id, saldo, pix_chave')
-    .gt('saldo', 0)
-
-  let processados = 0
-  for (const u of [...(parceiros ?? []), ...(entregadores ?? [])]) {
-    if (!u.pix_chave) continue
-    await supabase.from('saques').insert({
-      usuario_id: u.usuario_id,
-      valor:      u.saldo,
-      pix_chave:  u.pix_chave,
-      status:     'processado',
-    })
-    await supabase.from('parceiros').update({ saldo: 0 }).eq('usuario_id', u.usuario_id)
-    await supabase.from('entregadores').update({ saldo: 0 }).eq('usuario_id', u.usuario_id)
-    processados++
+  if (error) {
+    console.error('Erro cron saques:', error)
+    return NextResponse.json({ erro: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, processados })
+  return NextResponse.json({ ok: true })
 }

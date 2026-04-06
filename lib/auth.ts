@@ -174,33 +174,16 @@ export async function cadastrarEntregador(dados: {
 }
 
 // ── primeiro acesso parceiro ───────────────────────────────────
+// Usa a API route /api/auth/primeiro-acesso (service_role) para evitar
+// senha hardcoded no cliente. Esta função é mantida apenas como wrapper.
 export async function primeiroAcessoParceiro(telefone: string, senha: string) {
-  const tel   = limparTelefone(telefone)
-  const email = telefoneParaEmail(tel)
-
-  const { data: perfil } = await supabase
-    .from('perfis')
-    .select('id, role, primeiro_acesso')
-    .eq('telefone', tel)
-    .eq('role', 'parceiro')
-    .single()
-
-  if (!perfil) return { sucesso: false, erro: 'Telefone não encontrado ou não é parceiro.' }
-  if (!perfil.primeiro_acesso) return { sucesso: false, erro: 'Senha já foi definida. Use o login normal.' }
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password: 'cfm_primeiro_acesso_2024',
+  const res = await fetch('/api/auth/primeiro-acesso', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ telefone, senha }),
   })
-
-  if (error) return { sucesso: false, erro: 'Erro de validação. Contate o Admin.' }
-
-  const { error: errSenha } = await supabase.auth.updateUser({ password: senha })
-  if (errSenha) return { sucesso: false, erro: 'Erro ao definir senha.' }
-
-  await supabase.from('perfis').update({ primeiro_acesso: false }).eq('id', perfil.id)
-  await supabase.auth.signOut()
-
+  const json = await res.json()
+  if (!res.ok) return { sucesso: false, erro: json.erro ?? 'Erro ao definir senha.' }
   return { sucesso: true }
 }
 

@@ -118,9 +118,9 @@ export default function EntregadorMapa() {
           </div>
           <div style={s.infoRow}>
             <span style={s.infoL}>👤 Cliente</span>
-            <span style={s.infoV}>{pedido.clientes?.nome ?? '—'}</span>
+            <span style={s.infoV}>{pedido.clientes?.perfis?.nome ?? '—'}</span>
           </div>
-          <a href={`https://wa.me/55${pedido.clientes?.telefone?.replace(/\D/g,'')}?text=Olá, sou o entregador do seu pedido CompreFácil+. Estou a caminho!`}
+          <a href={`https://wa.me/55${pedido.clientes?.perfis?.telefone?.replace(/\D/g,'')}?text=Olá, sou o entregador do seu pedido CompreFácil+. Estou a caminho!`}
             target="_blank" rel="noreferrer" style={s.btnWhats}>
             💬 WhatsApp cliente
           </a>

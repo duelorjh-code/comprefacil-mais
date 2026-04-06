@@ -44,8 +44,13 @@ export default function AdminDashboard() {
   }, [])
 
   async function carregar() {
-    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
-    const hojeISO = hoje.toISOString()
+    // "Hoje" no fuso de Campo Grande (UTC-4)
+    const agora    = new Date()
+    const tzOffset = -4 * 60 // UTC-4 em minutos
+    const local    = new Date(agora.getTime() + (tzOffset - agora.getTimezoneOffset()) * 60000)
+    const hoje     = new Date(local)
+    hoje.setUTCHours(4, 0, 0, 0) // 00:00 BRT = 04:00 UTC
+    const hojeISO  = hoje.toISOString()
 
     const [
       { count: pedidos_hoje },
@@ -102,7 +107,8 @@ export default function AdminDashboard() {
       const h = new Date(p.criado_em).getHours()
       horas[`${h.toString().padStart(2, '0')}h`]++
     })
-    const agoraH = new Date().getHours()
+    const formatter = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Campo_Grande', hour: 'numeric', hour12: false })
+    const agoraH = parseInt(formatter.format(new Date()), 10)
     setPorHora(Object.entries(horas).filter(([k]) => parseInt(k) <= agoraH).slice(-8).map(([hora, total]) => ({ hora, total })))
 
     // Por status
@@ -149,9 +155,9 @@ export default function AdminDashboard() {
       <div style={s.cabecalho}>
         <div>
           <h1 style={s.titulo}>Dashboard</h1>
-          <p style={s.subtitulo}>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
+          <p style={s.subtitulo}>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', timeZone: 'America/Campo_Grande' })}</p>
         </div>
-        <div style={s.horaAtual}>{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+        <div style={s.horaAtual}>{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Campo_Grande' })}</div>
       </div>
 
       {/* Cards métricas */}

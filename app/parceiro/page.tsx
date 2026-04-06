@@ -25,6 +25,25 @@ export default function ParceiroPedidos() {
 
   useEffect(() => {
     async function init() {
+      // Verifica se há token de impersonação ativo (admin acessando como parceiro)
+      const token = sessionStorage.getItem('parceiro_impersonar')
+
+      if (token) {
+        // Busca o parceiro_id via API autenticada pelo token HMAC
+        const res  = await fetch(`/api/admin/parceiro-dados?token=${encodeURIComponent(token)}`)
+        const json = await res.json()
+        if (!res.ok || !json.data) return
+        // Busca o id do parceiro pelo nome_fantasia não é suficiente — precisa do parceiro_id
+        // Usa uma rota separada para obter o ID pelo token
+        const resId = await fetch(`/api/admin/parceiro-id?token=${encodeURIComponent(token)}`)
+        const jsonId = await resId.json()
+        if (!resId.ok || !jsonId.parceiro_id) return
+        setParcId(jsonId.parceiro_id)
+        carregar(jsonId.parceiro_id)
+        return
+      }
+
+      // Fluxo normal do parceiro autenticado
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: p } = await supabase.from('parceiros').select('id').eq('usuario_id', user.id).single()

@@ -31,6 +31,7 @@ export default function AdminParceiros() {
   const [erro, setErro]             = useState('')
   const [busca, setBusca]           = useState('')
   const [loadingPag, setLoadingPag] = useState(true)
+  const [senhaGerada, setSenhaGerada] = useState('')
 
   useEffect(() => { carregar() }, [])
 
@@ -81,10 +82,13 @@ export default function AdminParceiros() {
     const tel   = form.telefone.replace(/\D/g, '')
     const email = `${tel}@cfm.app`
 
+    // Gera senha provisória aleatória de 6 dígitos — será exibida ao admin após o cadastro
+    const senhaProvisoria = String(Math.floor(100000 + Math.random() * 900000))
+
     const apiRes = await fetch('/api/auth/cadastro', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: '202400', role: 'parceiro', nome: form.nome_completo.trim(), telefone: tel }),
+      body: JSON.stringify({ email, password: senhaProvisoria, role: 'parceiro', nome: form.nome_completo.trim(), telefone: tel }),
     })
     const apiData = await apiRes.json()
     if (!apiRes.ok) { setLoading(false); return setErro(apiData.error ?? 'Erro ao criar acesso.') }
@@ -130,6 +134,7 @@ export default function AdminParceiros() {
 
     setLoading(false)
     if (errP) return setErro('Erro ao cadastrar: ' + errP.message)
+    setSenhaGerada(senhaProvisoria)
     setModal(false); setForm({...VAZIO}); setDocFile(null); carregar()
   }
 
@@ -200,6 +205,31 @@ export default function AdminParceiros() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {senhaGerada && (
+        <div style={s.overlay} onClick={() => setSenhaGerada('')}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            <div style={s.modalTop}>
+              <h2 style={s.modalTitulo}>✅ Parceiro cadastrado</h2>
+            </div>
+            <p style={{ fontSize: 13, color: TEXTO_MEIO, textAlign: 'center' as const }}>
+              Anote a senha provisória abaixo e repasse ao parceiro.<br />
+              Ele deverá alterá-la no primeiro acesso.
+            </p>
+            <div style={{ background: '#F4F6FB', borderRadius: 12, padding: '20px', textAlign: 'center' as const }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: TEXTO_MEIO, marginBottom: 6 }}>SENHA PROVISÓRIA</div>
+              <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 8, color: AZUL, fontFamily: 'monospace' }}>{senhaGerada}</div>
+            </div>
+            <button onClick={() => { navigator.clipboard.writeText(senhaGerada); alert('Copiado!') }}
+              style={{ ...s.btnSalvar, background: '#EEF2FF', color: AZUL }}>
+              📋 Copiar senha
+            </button>
+            <button onClick={() => setSenhaGerada('')} style={s.btnSalvar}>
+              Fechar
+            </button>
+          </div>
         </div>
       )}
 
