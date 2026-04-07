@@ -1,13 +1,19 @@
 import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import './globals.css'
 
 export const metadata: Metadata = {
   title: 'CompreFácil+',
-  description: 'MGM - Marcelo Moura',
+  description: 'Sua conveniência a um clique de distância',
   manifest: '/manifest.json',
   icons: {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-192.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'CompreFácil+',
   },
 }
 
@@ -21,7 +27,16 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Script id="sw-register" strategy="afterInteractive">{`
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+              navigator.serviceWorker.register('/sw.js').catch(() => {})
+            })
+          }
+        `}</Script>
+      </body>
     </html>
   )
 }

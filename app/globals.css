@@ -62,3 +62,17 @@ input, select, textarea { font-family: 'Nunito', sans-serif; }
 .anim-spin     { animation: spin     0.8s linear infinite; }
 .anim-pulse    { animation: pulse    1.5s ease-in-out infinite; }
 .anim-blink    { animation: blink    1.4s ease-in-out infinite; }
+
+/* Skeleton loading */
+@keyframes skeleton-shine {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Smooth scroll global */
+html { scroll-behavior: smooth; }
+
+/* Scrollbar fina */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }

@@ -1,24 +1,16 @@
 {
   "name": "CompreFácil+",
   "short_name": "CompreFácil+",
-  "description": "MGM - Marcelo Moura",
+  "description": "Sua conveniência a um clique de distância",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1B2F5E",
   "theme_color": "#1B2F5E",
   "orientation": "portrait",
   "icons": [
-    {
-      "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["shopping", "food"],
+  "lang": "pt-BR"
 }
