@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
+import { MAPA_STYLE } from '@/lib/mapa-style'
 
 const LAT_DEFAULT = -20.70
 const LNG_DEFAULT = -51.70
@@ -129,7 +130,7 @@ export default function EntregadorPage() {
     const map = new ml.Map({
       container: mapRef.current,
       // Estilo Positron — limpo, moderno, perfeito para delivery
-      style: 'https://tiles.openfreemap.org/styles/positron',
+      style: MAPA_STYLE as any,
       center: [LNG_DEFAULT, LAT_DEFAULT],
       zoom: 14,
       attributionControl: false,

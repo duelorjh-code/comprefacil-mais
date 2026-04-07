@@ -14,8 +14,9 @@ const ROTAS_ROLE: Record<string, string> = {
   '/perfil':     'cliente',
 }
 
-const API_ADMIN_PREFIXO   = '/api/admin/'
-const API_ENTREGADOR_ACAO = '/api/entregador/acao'
+const API_ADMIN_PREFIXO    = '/api/admin/'
+const API_ENTREGADOR_ACAO  = '/api/entregador/acao'
+const API_PARCEIRO_PREFIXO = '/api/parceiro/'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -39,6 +40,22 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { session } } = await supabase.auth.getSession()
+
+  // ── Proteção das rotas de API /api/parceiro/* ────────────────
+  if (pathname.startsWith(API_PARCEIRO_PREFIXO)) {
+    if (!session) {
+      return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
+    }
+    const { data: perfil } = await supabase
+      .from('perfis')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+    if (!perfil || !['parceiro', 'admin'].includes(perfil.role)) {
+      return NextResponse.json({ erro: 'Acesso negado.' }, { status: 403 })
+    }
+    return response
+  }
 
   // ── Proteção das rotas de API /api/admin/* ───────────────────
   if (pathname.startsWith(API_ADMIN_PREFIXO)) {

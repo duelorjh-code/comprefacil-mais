@@ -92,25 +92,24 @@ export default function ParceiroPedidos() {
   }
 
   async function avancarStatus(id: string, statusAtual: string) {
-    const prox: Record<string, string> = {
-      pago: 'em_separacao',
-      em_separacao: 'pronto',
-    }
-    const novo = prox[statusAtual]
-    if (!novo) return
-
     setAvancando(id)
     setErro('')
 
-    const { error } = await supabase
-      .from('pedidos')
-      .update({ status: novo })
-      .eq('id', id)
+    try {
+      const res  = await fetch('/api/parceiro/pedido-status', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ pedido_id: id }),
+      })
+      const json = await res.json()
 
-    if (error) {
-      setErro('Erro ao atualizar pedido: ' + error.message)
-    } else {
-      setPedidos(prev => prev.map(p => p.id === id ? { ...p, status: novo } : p))
+      if (!res.ok || json.erro) {
+        setErro(json.erro ?? 'Erro ao atualizar pedido.')
+      } else {
+        setPedidos(prev => prev.map(p => p.id === id ? { ...p, status: json.novo_status } : p))
+      }
+    } catch {
+      setErro('Erro de conexão. Tente novamente.')
     }
     setAvancando(null)
   }

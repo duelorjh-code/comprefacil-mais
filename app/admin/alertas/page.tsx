@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, TEXTO, TEXTO_MEIO, CINZA_BORDA } from '@/lib/constants'
+import { MAPA_STYLE } from '@/lib/mapa-style'
 
 const LAT_DEFAULT = -20.70
 const LNG_DEFAULT = -51.70
@@ -76,7 +77,7 @@ export default function AdminAlertas() {
   function criarMapa(ml: any, container: HTMLDivElement) {
     const map = new ml.Map({
       container,
-      style: 'https://tiles.openfreemap.org/styles/positron',
+      style: MAPA_STYLE as any,
       center: [LNG_DEFAULT, LAT_DEFAULT],
       zoom: 12,
       attributionControl: false,
