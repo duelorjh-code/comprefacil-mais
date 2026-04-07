@@ -2,19 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { AZUL, DOURADO, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL, linkWhats } from '@/lib/constants'
+import { AZUL, DOURADO, VERDE, VERMELHO, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
 
-const STATUS_LABEL: Record<string, string> = {
-  pago: 'Pago', em_separacao: 'Separando', pronto: 'Pronto',
-  a_caminho: 'A caminho', entregue: 'Entregue', cancelado: 'Cancelado',
-}
-const STATUS_COR: Record<string, { bg: string; color: string }> = {
-  pago:         { bg: '#DBEAFE', color: '#1D4ED8' },
-  em_separacao: { bg: '#FEF3C7', color: '#92400E' },
-  pronto:       { bg: '#D1FAE5', color: '#065F46' },
-  a_caminho:    { bg: '#F3E8FF', color: '#6B21A8' },
-  entregue:     { bg: '#DCFCE7', color: '#15803D' },
-  cancelado:    { bg: '#FEE2E2', color: '#DC2626' },
+const STATUS: Record<string, { cor: string; label: string; bg: string }> = {
+  pago:         { cor: '#1D4ED8', bg: '#DBEAFE', label: 'Pago'        },
+  em_separacao: { cor: '#6D28D9', bg: '#EDE9FE', label: 'Separando'   },
+  pronto:       { cor: '#0E7490', bg: '#CFFAFE', label: 'Pronto'      },
+  a_caminho:    { cor: '#92400E', bg: '#FEF3C7', label: 'A caminho'   },
+  entregue:     { cor: '#065F46', bg: '#D1FAE5', label: 'Entregue'    },
+  cancelado:    { cor: '#991B1B', bg: '#FEE2E2', label: 'Cancelado'   },
 }
 
 export default function ParceiroPedidos() {
@@ -23,6 +19,8 @@ export default function ParceiroPedidos() {
   const [loading, setLoading]         = useState(true)
   const [avancando, setAvancando]     = useState<string | null>(null)
   const [selecionado, setSelecionado] = useState<string | null>(null)
+  const [filtro, setFiltro]           = useState('todos')
+  const [busca, setBusca]             = useState('')
   const [erro, setErro]               = useState('')
   const audioRef = useRef<HTMLAudioElement>(null)
 
@@ -30,7 +28,6 @@ export default function ParceiroPedidos() {
     let canal: any = null
 
     async function init() {
-      // Suporte a impersonação admin via token
       const token = sessionStorage.getItem('parceiro_impersonar')
       let pid = ''
 
@@ -113,11 +110,20 @@ export default function ParceiroPedidos() {
     if (error) {
       setErro('Erro ao atualizar pedido: ' + error.message)
     } else {
-      // Atualiza localmente imediatamente
       setPedidos(prev => prev.map(p => p.id === id ? { ...p, status: novo } : p))
     }
     setAvancando(null)
   }
+
+  const filtrados = pedidos.filter(p => {
+    if (filtro !== 'todos' && p.status !== filtro) return false
+    if (busca) {
+      const b = busca.toLowerCase()
+      return p.id.toLowerCase().includes(b) ||
+        (p.clientes?.perfis?.nome ?? '').toLowerCase().includes(b)
+    }
+    return true
+  })
 
   const pedidoSelecionado = pedidos.find(p => p.id === selecionado)
 
@@ -126,81 +132,106 @@ export default function ParceiroPedidos() {
       <audio ref={audioRef} src="/sons/alerta.mp3" preload="auto" />
 
       <div style={s.cabecalho}>
-        <div>
-          <h1 style={s.titulo}>Pedidos ativos</h1>
-          <p style={s.sub}>
-            {pedidos.length === 0
-              ? 'Nenhum pedido no momento'
-              : `${pedidos.length} pedido${pedidos.length > 1 ? 's' : ''} aguardando`}
-          </p>
-        </div>
-        <div>
-          {pedidos.length > 0
-            ? <span style={s.badgeAtivo}>{pedidos.length} novo{pedidos.length > 1 ? 's' : ''}</span>
-            : <span style={s.badgeVazio}>Fila vazia</span>}
-        </div>
+        <h1 style={s.titulo}>Pedidos</h1>
+        <span style={s.badge}>
+          {pedidos.length} ativo{pedidos.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
       {erro && <div style={s.erroBox}>⚠️ {erro}</div>}
 
+      <input style={s.busca} placeholder="🔍 Buscar por ID ou cliente…"
+        value={busca} onChange={e => setBusca(e.target.value)} />
+
+      <div style={s.tabs}>
+        {['todos', ...Object.keys(STATUS)].map(st => (
+          <button key={st} onClick={() => setFiltro(st)}
+            style={{ ...s.tab, ...(filtro === st ? s.tabAtivo : {}) }}>
+            {st === 'todos' ? 'Todos' : STATUS[st]?.label ?? st}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
-        <div style={s.loading}><span className="anim-spin" style={s.spinner} /></div>
-      ) : pedidos.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40, color: TEXTO_MEIO }}>Carregando...</div>
+      ) : filtrados.length === 0 ? (
         <div style={s.vazio}>
-          <div style={{ fontSize: 56 }}>🎉</div>
-          <div style={s.vazioTitulo}>Tudo em dia!</div>
-          <div style={s.vazioSub}>Você será avisado sonoramente ao receber um novo pedido.</div>
+          <div style={{ fontSize: 48 }}>🎉</div>
+          <p style={{ fontWeight: 700, color: TEXTO_MEIO }}>
+            {pedidos.length === 0 ? 'Nenhum pedido no momento' : 'Nenhum pedido com este filtro'}
+          </p>
         </div>
       ) : (
-        <div style={s.grid}>
-          {/* Lista */}
-          <div style={s.lista}>
-            {pedidos.map(p => {
-              const cor        = STATUS_COR[p.status] ?? { bg: '#F1F5F9', color: '#64748B' }
+        <div style={s.conteudo}>
+          {/* Grade de cards */}
+          <div style={s.grid}>
+            {filtrados.map(p => {
+              const st         = STATUS[p.status] ?? { cor: '#999', bg: '#F3F4F6', label: p.status }
               const carregando = avancando === p.id
+              const ativo      = selecionado === p.id
+
               return (
                 <div key={p.id}
-                  onClick={() => setSelecionado(p.id === selecionado ? null : p.id)}
+                  onClick={() => setSelecionado(ativo ? null : p.id)}
                   style={{
                     ...s.card,
-                    border: `2px solid ${selecionado === p.id ? AZUL : '#E2E8F0'}`,
-                    background: selecionado === p.id ? '#EFF6FF' : '#fff',
+                    borderLeft: `4px solid ${st.cor}`,
+                    outline: ativo ? `2px solid ${AZUL}` : 'none',
                     opacity: carregando ? 0.7 : 1,
+                    cursor: 'pointer',
                   }}>
+
+                  {/* Header */}
                   <div style={s.cardTop}>
                     <span style={s.cardId}>#{p.id.slice(0, 8).toUpperCase()}</span>
-                    <span style={{ ...s.pill, background: cor.bg, color: cor.color }}>
-                      {STATUS_LABEL[p.status]}
-                    </span>
-                  </div>
-                  <div style={s.cardCliente}>{p.clientes?.perfis?.nome ?? '—'}</div>
-                  <div style={s.cardInfo}>
-                    <span style={s.cardTotal}>{formatBRL(p.total)}</span>
-                    <span style={s.cardHora}>
-                      {new Date(p.criado_em).toLocaleTimeString('pt-BR', {
-                        hour: '2-digit', minute: '2-digit', timeZone: 'America/Campo_Grande',
-                      })}
-                    </span>
+                    <span style={{ ...s.pill, background: st.bg, color: st.cor }}>{st.label}</span>
                   </div>
 
+                  {/* Infos */}
+                  <div style={s.infos}>
+                    <div style={s.infoLinha}>
+                      <span style={s.infoL}>Cliente</span>
+                      <span style={s.infoV}>{p.clientes?.perfis?.nome ?? '—'}</span>
+                    </div>
+                    <div style={s.infoLinha}>
+                      <span style={s.infoL}>Entregador</span>
+                      <span style={s.infoV}>{p.entregadores?.perfis?.nome ?? '—'}</span>
+                    </div>
+                    <div style={s.infoLinha}>
+                      <span style={s.infoL}>Total</span>
+                      <span style={{ ...s.infoV, fontWeight: 800, color: AZUL }}>{formatBRL(p.total)}</span>
+                    </div>
+                    <div style={s.infoLinha}>
+                      <span style={s.infoL}>Hora</span>
+                      <span style={s.infoV}>
+                        {new Date(p.criado_em).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit', minute: '2-digit', timeZone: 'America/Campo_Grande',
+                        })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {p.endereco_entrega && (
+                    <div style={s.endereco}>📍 {p.endereco_entrega}</div>
+                  )}
+
+                  {/* Ações */}
                   {['pago', 'em_separacao'].includes(p.status) && (
-                    <button
-                      disabled={carregando}
-                      onClick={e => { e.stopPropagation(); avancarStatus(p.id, p.status) }}
-                      style={{ ...s.btnAvancar, opacity: carregando ? 0.5 : 1, cursor: carregando ? 'not-allowed' : 'pointer' }}>
-                      {carregando
-                        ? '⏳ Atualizando...'
-                        : p.status === 'pago'
-                          ? '📦 Iniciar separação'
-                          : '✅ Marcar como pronto'}
-                    </button>
+                    <div style={s.acoes}>
+                      <BtnAcao
+                        label={p.status === 'pago' ? '📦 Iniciar separação' : '✅ Marcar como pronto'}
+                        cor={p.status === 'pago' ? '#6D28D9' : '#0E7490'}
+                        loading={carregando}
+                        onClick={e => { e.stopPropagation(); avancarStatus(p.id, p.status) }}
+                      />
+                    </div>
                   )}
                 </div>
               )
             })}
           </div>
 
-          {/* Detalhe */}
+          {/* Painel de detalhe lateral */}
           {pedidoSelecionado && (
             <div style={s.detalhe}>
               <div style={s.detalheTop}>
@@ -221,24 +252,39 @@ export default function ParceiroPedidos() {
               <div style={s.divider} />
 
               <div style={{ ...s.itemRow, fontWeight: 800, fontSize: 15, color: AZUL }}>
-                <span>Total</span><span>{formatBRL(pedidoSelecionado.total)}</span>
+                <span>Total</span>
+                <span>{formatBRL(pedidoSelecionado.total)}</span>
               </div>
 
               <div style={s.detalheSecao}>Entrega</div>
               <div style={s.enderecoBox}>{pedidoSelecionado.endereco_entrega}</div>
 
-              {pedidoSelecionado.entregadores && (
+              {pedidoSelecionado.clientes?.perfis && (
+                <>
+                  <div style={s.detalheSecao}>Cliente</div>
+                  <div style={s.entregadorRow}>
+                    <span style={s.entregadorNome}>
+                      {pedidoSelecionado.clientes.perfis.nome}
+                    </span>
+                    <a href={`https://wa.me/55${pedidoSelecionado.clientes.perfis.telefone?.replace(/\D/g, '')}`}
+                      target="_blank" rel="noreferrer" style={s.btnWhatsMini}>💬</a>
+                  </div>
+                </>
+              )}
+
+              {pedidoSelecionado.entregadores?.perfis && (
                 <>
                   <div style={s.detalheSecao}>Entregador</div>
                   <div style={s.entregadorRow}>
                     <span style={s.entregadorNome}>
-                      {pedidoSelecionado.entregadores.perfis?.nome}
+                      {pedidoSelecionado.entregadores.perfis.nome}
                     </span>
-                    <a href={`https://wa.me/55${pedidoSelecionado.entregadores.perfis?.telefone?.replace(/\D/g, '')}`}
+                    <a href={`https://wa.me/55${pedidoSelecionado.entregadores.perfis.telefone?.replace(/\D/g, '')}`}
                       target="_blank" rel="noreferrer" style={s.btnWhatsMini}>💬</a>
                   </div>
                   <div style={s.codigoBox}>
-                    Código: <strong style={{ letterSpacing: 4 }}>
+                    Código de confirmação:{' '}
+                    <strong style={{ letterSpacing: 4, fontSize: 18 }}>
                       {pedidoSelecionado.codigo_confirmacao}
                     </strong>
                   </div>
@@ -252,30 +298,51 @@ export default function ParceiroPedidos() {
   )
 }
 
+function BtnAcao({ label, cor, onClick, loading }: {
+  label: string; cor: string; onClick: (e: React.MouseEvent) => void; loading: boolean
+}) {
+  return (
+    <button onClick={onClick} disabled={loading}
+      style={{
+        padding: '6px 10px',
+        background: cor + '15',
+        border: `1.5px solid ${cor}`,
+        borderRadius: 7,
+        color: loading ? cor + '60' : cor,
+        fontSize: 11,
+        fontWeight: 800,
+        cursor: loading ? 'not-allowed' : 'pointer',
+        fontFamily: 'inherit',
+        opacity: loading ? 0.6 : 1,
+      }}>
+      {loading ? '...' : label}
+    </button>
+  )
+}
+
 const s: Record<string, React.CSSProperties> = {
   wrap:          { display: 'flex', flexDirection: 'column', gap: 16 },
-  cabecalho:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  cabecalho:     { display: 'flex', alignItems: 'center', gap: 12 },
   titulo:        { fontSize: 22, fontWeight: 800, color: '#1A2340', margin: 0 },
-  sub:           { fontSize: 13, color: '#64748B', marginTop: 2 },
-  badgeAtivo:    { background: '#DBEAFE', color: '#1D4ED8', fontWeight: 800, fontSize: 13, padding: '5px 14px', borderRadius: 20 },
-  badgeVazio:    { background: '#F1F5F9', color: '#94A3B8', fontWeight: 700, fontSize: 13, padding: '5px 14px', borderRadius: 20 },
+  badge:         { background: '#FEE2E2', color: '#991B1B', fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20 },
   erroBox:       { background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#DC2626' },
-  loading:       { display: 'flex', justifyContent: 'center', padding: 60 },
-  spinner:       { width: 28, height: 28, borderRadius: '50%', border: '3px solid rgba(27,47,94,0.15)', borderTopColor: AZUL, display: 'block' },
-  vazio:         { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', gap: 12, background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0' },
-  vazioTitulo:   { fontSize: 20, fontWeight: 800, color: '#1A2340' },
-  vazioSub:      { fontSize: 13, color: '#64748B', textAlign: 'center' as const },
-  grid:          { display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16, alignItems: 'start' },
-  lista:         { display: 'flex', flexDirection: 'column', gap: 10 },
-  card:          { background: '#fff', borderRadius: 12, padding: '14px', cursor: 'pointer', transition: 'border 0.2s, opacity 0.2s', display: 'flex', flexDirection: 'column', gap: 8 },
-  cardTop:       { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  cardId:        { fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#64748B' },
-  pill:          { fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 },
-  cardCliente:   { fontSize: 15, fontWeight: 800, color: '#1A2340' },
-  cardInfo:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  cardTotal:     { fontSize: 16, fontWeight: 800, color: AZUL },
-  cardHora:      { fontSize: 12, color: '#94A3B8', fontWeight: 600 },
-  btnAvancar:    { padding: '10px', background: AZUL, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 800, fontFamily: 'inherit', textAlign: 'center' as const },
+  busca:         { border: `1.5px solid ${CINZA_BORDA}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: '#1A2340', background: '#fff', outline: 'none', fontFamily: 'inherit', width: '100%' },
+  tabs:          { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
+  tab:           { padding: '5px 12px', borderRadius: 20, border: `1.5px solid ${CINZA_BORDA}`, background: '#fff', fontSize: 11, fontWeight: 700, color: '#64748B', cursor: 'pointer', fontFamily: 'inherit' },
+  tabAtivo:      { background: AZUL, color: '#fff', borderColor: AZUL },
+  vazio:         { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0', gap: 10 },
+  conteudo:      { display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, alignItems: 'start' },
+  grid:          { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 },
+  card:          { background: '#fff', borderRadius: 12, padding: '14px', boxShadow: '0 1px 6px rgba(27,47,94,0.08)', display: 'flex', flexDirection: 'column', gap: 10, transition: 'opacity 0.2s' },
+  cardTop:       { display: 'flex', alignItems: 'center', gap: 8 },
+  cardId:        { fontSize: 12, fontWeight: 800, color: '#1A2340', fontFamily: 'monospace', flex: 1 },
+  pill:          { fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap' as const },
+  infos:         { display: 'flex', flexDirection: 'column', gap: 4 },
+  infoLinha:     { display: 'flex', gap: 6, alignItems: 'baseline' },
+  infoL:         { fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, width: 68, flexShrink: 0 },
+  infoV:         { fontSize: 12, fontWeight: 600, color: '#1A2340' },
+  endereco:      { fontSize: 11, color: '#64748B', background: '#F8FAFC', borderRadius: 6, padding: '6px 8px' },
+  acoes:         { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
   detalhe:       { background: '#fff', borderRadius: 12, padding: '16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 10, position: 'sticky', top: 76 },
   detalheTop:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   detalheId:     { fontFamily: 'monospace', fontSize: 13, fontWeight: 800, color: AZUL },
@@ -289,5 +356,5 @@ const s: Record<string, React.CSSProperties> = {
   entregadorRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   entregadorNome:{ fontSize: 14, fontWeight: 700, color: '#1A2340' },
   btnWhatsMini:  { background: '#DCFCE7', color: '#15803D', padding: '6px 10px', borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 700, border: '1px solid #86EFAC' },
-  codigoBox:     { background: '#F8FAFC', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#64748B', textAlign: 'center' as const },
+  codigoBox:     { background: '#F8FAFC', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#64748B', textAlign: 'center' as const, lineHeight: 2 },
 }
