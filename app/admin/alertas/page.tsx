@@ -3,10 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, TEXTO, TEXTO_MEIO, CINZA_BORDA } from '@/lib/constants'
-import { MAPA_STYLE } from '@/lib/mapa-style'
-
-const LAT_DEFAULT = -20.70
-const LNG_DEFAULT = -51.70
 
 const CORES_RAIO = [
   '#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6',
@@ -16,7 +12,6 @@ const CORES_RAIO = [
 export default function AdminAlertas() {
   const [parceiros, setParceiros]       = useState<any[]>([])
   const [entregadores, setEntregadores] = useState<any[]>([])
-
   const mapLojasRef  = useRef<HTMLDivElement>(null)
   const mapEntRef    = useRef<HTMLDivElement>(null)
   const mapLojasObj  = useRef<any>(null)
@@ -26,8 +21,7 @@ export default function AdminAlertas() {
 
   useEffect(() => {
     carregarDados()
-    carregarMapLibre()
-
+    carregarLeaflet()
     const canal = supabase.channel('mapa-entregadores')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'entregadores' }, () => {
         carregarEntregadores()
@@ -60,134 +54,88 @@ export default function AdminAlertas() {
     setEntregadores(data ?? [])
   }
 
-  function carregarMapLibre() {
-    if ((window as any).maplibregl) { initMapas((window as any).maplibregl); return }
-
-    const css = document.createElement('link')
-    css.rel   = 'stylesheet'
-    css.href  = 'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.css'
-    document.head.appendChild(css)
-
+  async function carregarLeaflet() {
+    if ((window as any).L) { initMapas((window as any).L); return }
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'
+    document.head.appendChild(link)
     const script = document.createElement('script')
-    script.src   = 'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.js'
-    script.onload = () => initMapas((window as any).maplibregl)
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
+    script.onload = () => initMapas((window as any).L)
     document.head.appendChild(script)
   }
 
-  function criarMapa(ml: any, container: HTMLDivElement) {
-    const map = new ml.Map({
-      container,
-      style: MAPA_STYLE as any,
-      center: [LNG_DEFAULT, LAT_DEFAULT],
-      zoom: 12,
-      attributionControl: false,
-    })
-    map.addControl(new ml.AttributionControl({ compact: true }), 'bottom-right')
-    map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right')
-    return map
-  }
-
-  function initMapas(ml: any) {
+  function initMapas(L: any) {
     if (mapLojasRef.current && !mapLojasObj.current) {
-      const m = criarMapa(ml, mapLojasRef.current)
-      m.on('load', () => {
-        mapLojasObj.current = m
-        atualizarMarcadoresLojas()
-      })
+      const m = L.map(mapLojasRef.current).setView([-20.768, -51.719], 13)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 19,
+      }).addTo(m)
+      mapLojasObj.current = m
+      setTimeout(() => { m.invalidateSize(); atualizarMarcadoresLojas() }, 300)
     }
     if (mapEntRef.current && !mapEntObj.current) {
-      const m = criarMapa(ml, mapEntRef.current)
-      m.on('load', () => {
-        mapEntObj.current = m
-        atualizarMarcadoresEntregadores()
-      })
+      const m = L.map(mapEntRef.current).setView([-20.768, -51.719], 13)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 19,
+      }).addTo(m)
+      mapEntObj.current = m
+      setTimeout(() => { m.invalidateSize(); atualizarMarcadoresEntregadores() }, 300)
     }
   }
 
   function atualizarMarcadoresLojas() {
-    const ml = (window as any).maplibregl
-    if (!ml || !mapLojasObj.current) return
-
+    const L = (window as any).L
+    if (!L || !mapLojasObj.current) return
     marcLojasRef.current.forEach(m => m.remove())
     marcLojasRef.current = []
-
-    const bounds = (ml as any).LngLatBounds ? new ml.LngLatBounds() : null
 
     parceiros.forEach((p, i) => {
       if (!p.lat || !p.lng) return
       const cor = CORES_RAIO[i % CORES_RAIO.length]
-
-      // Círculo de 6km via GeoJSON
-      const sourceId = `raio-${p.id}`
-      if (!mapLojasObj.current.getSource(sourceId)) {
-        // Gera pontos do círculo
-        const pontos: number[][] = []
-        for (let a = 0; a <= 360; a += 6) {
-          const rad = a * Math.PI / 180
-          const dLat = (6000 / 111320) * Math.cos(rad)
-          const dLng = (6000 / (111320 * Math.cos(p.lat * Math.PI / 180))) * Math.sin(rad)
-          pontos.push([p.lng + dLng, p.lat + dLat])
-        }
-        mapLojasObj.current.addSource(sourceId, {
-          type: 'geojson',
-          data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [pontos] } },
-        })
-        mapLojasObj.current.addLayer({
-          id: sourceId, type: 'fill', source: sourceId,
-          paint: { 'fill-color': cor, 'fill-opacity': 0.08 },
-        })
-        mapLojasObj.current.addLayer({
-          id: sourceId + '-border', type: 'line', source: sourceId,
-          paint: { 'line-color': cor, 'line-width': 2, 'line-dasharray': [3, 3] },
-        })
-      }
-
-      // Marcador da loja
-      const el     = document.createElement('div')
-      el.innerHTML = `<div style="background:${cor};color:#fff;border-radius:10px;padding:5px 10px;font-size:12px;font-weight:800;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.2)">📍 ${p.nome_fantasia}</div>`
-      const marker = new ml.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat([p.lng, p.lat])
-        .setPopup(new ml.Popup({ offset: 25 }).setHTML(`<b>${p.nome_fantasia}</b><br>${p.endereco}, ${p.numero}<br>${p.cidade}<br>Raio: 6km`))
+      const raio = L.circle([p.lat, p.lng], {
+        radius: 6000, color: cor, fillColor: cor, fillOpacity: 0.08, weight: 2, dashArray: '6 4',
+      }).addTo(mapLojasObj.current)
+      const icone = L.divIcon({
+        html: `<div style="background:${cor};color:#fff;border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25)">📍 ${p.nome_fantasia}</div>`,
+        className: '', iconAnchor: [0, 0],
+      })
+      const m = L.marker([p.lat, p.lng], { icon: icone })
         .addTo(mapLojasObj.current)
-
-      marcLojasRef.current.push(marker)
-      if (bounds) bounds.extend([p.lng, p.lat])
+        .bindPopup(`<b>${p.nome_fantasia}</b><br>${p.endereco}, ${p.numero}<br>${p.cidade}<br>Raio: 6km`)
+      marcLojasRef.current.push(raio, m)
     })
 
-    if (bounds && !bounds.isEmpty()) {
-      mapLojasObj.current.fitBounds(bounds, { padding: 60, duration: 800, maxZoom: 14 })
+    if (parceiros.length > 0 && parceiros[0].lat) {
+      mapLojasObj.current.setView([parceiros[0].lat, parceiros[0].lng], 13)
     }
   }
 
   function atualizarMarcadoresEntregadores() {
-    const ml = (window as any).maplibregl
-    if (!ml || !mapEntObj.current) return
-
+    const L = (window as any).L
+    if (!L || !mapEntObj.current) return
     marcEntRef.current.forEach(m => m.remove())
     marcEntRef.current = []
-
-    const bounds = new ml.LngLatBounds()
 
     entregadores.forEach((e, i) => {
       if (!e.lat_atual || !e.lng_atual) return
       const cor = CORES_RAIO[i % CORES_RAIO.length]
-
-      const el     = document.createElement('div')
-      el.innerHTML = `<div style="background:${AZUL};color:#fff;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid ${cor};box-shadow:0 2px 8px rgba(0,0,0,0.3)">${e.tipo_veiculo === 'moto' ? '🏍️' : '⚡'}</div>`
-
-      const marker = new ml.Marker({ element: el, anchor: 'center' })
-        .setLngLat([e.lng_atual, e.lat_atual])
-        .setPopup(new ml.Popup({ offset: 20 }).setHTML(`<b>${e.perfis?.nome ?? '—'}</b><br>${e.perfis?.telefone ?? ''}<br>🟢 Online`))
+      const raio = L.circle([e.lat_atual, e.lng_atual], {
+        radius: 6000, color: cor, fillColor: cor, fillOpacity: 0.06, weight: 2, dashArray: '6 4',
+      }).addTo(mapEntObj.current)
+      const icone = L.divIcon({
+        html: `<div style="background:${AZUL};color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;border:3px solid ${cor};box-shadow:0 2px 8px rgba(0,0,0,0.3)">${e.tipo_veiculo === 'moto' ? '🏍️' : '⚡'}</div>`,
+        className: '', iconSize: [34, 34], iconAnchor: [17, 17],
+      })
+      const m = L.marker([e.lat_atual, e.lng_atual], { icon: icone })
         .addTo(mapEntObj.current)
-
-      marcEntRef.current.push(marker)
-      bounds.extend([e.lng_atual, e.lat_atual])
+        .bindPopup(`<b>${e.perfis?.nome ?? '—'}</b><br>${e.perfis?.telefone ?? ''}<br>🟢 Online`)
+      marcEntRef.current.push(raio, m)
     })
 
-    if (!bounds.isEmpty()) {
-      mapEntObj.current.fitBounds(bounds, { padding: 60, duration: 800, maxZoom: 15 })
-    } else {
-      mapEntObj.current.flyTo({ center: [LNG_DEFAULT, LAT_DEFAULT], zoom: 12 })
+    if (entregadores.length > 0) {
+      mapEntObj.current.setView([entregadores[0].lat_atual, entregadores[0].lng_atual], 13)
     }
   }
 
@@ -195,7 +143,6 @@ export default function AdminAlertas() {
     <div style={s.wrap} className="anim-fadeIn">
       <h1 style={s.titulo}>Mapa Estratégico</h1>
 
-      {/* Mapa Lojas */}
       <div style={s.secao}>
         <div style={s.secaoHeader}>
           <span style={s.secaoTitulo}>🏪 Lojas cadastradas ({parceiros.length})</span>
@@ -210,7 +157,6 @@ export default function AdminAlertas() {
         <div ref={mapLojasRef} style={s.mapa} />
       </div>
 
-      {/* Mapa Entregadores */}
       <div style={s.secao}>
         <div style={s.secaoHeader}>
           <span style={s.secaoTitulo}>🛵 Entregadores online ({entregadores.length})</span>
@@ -227,13 +173,13 @@ export default function AdminAlertas() {
 
 const s: Record<string, React.CSSProperties> = {
   wrap:            { display: 'flex', flexDirection: 'column', gap: 24 },
-  titulo:          { fontSize: 22, fontWeight: 800, color: '#1A2340', margin: 0 },
+  titulo:          { fontSize: 22, fontWeight: 800, color: TEXTO, margin: 0 },
   secao:           { display: 'flex', flexDirection: 'column', gap: 8 },
   secaoHeader:     { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const },
-  secaoTitulo:     { fontSize: 15, fontWeight: 800, color: '#1A2340' },
+  secaoTitulo:     { fontSize: 15, fontWeight: 800, color: TEXTO },
   legendaRaios:    { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
   legendaRaioItem: { fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, border: '1.5px solid', background: '#fff' },
   legendaInfo:     { fontSize: 12, color: TEXTO_MEIO },
-  mapa:            { width: '100%', height: 320, borderRadius: 14, overflow: 'hidden', border: `1.5px solid ${CINZA_BORDA}` },
+  mapa:            { width: '100%', height: 280, borderRadius: 14, overflow: 'hidden', border: `1.5px solid ${CINZA_BORDA}` },
   vazio:           { textAlign: 'center' as const, padding: 16, color: TEXTO_MEIO, fontSize: 14 },
 }

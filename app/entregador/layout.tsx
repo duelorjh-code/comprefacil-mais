@@ -14,12 +14,12 @@ const MENU = [
 ]
 
 export default function EntregadorLayout({ children }: { children: React.ReactNode }) {
-  const router   = useRouter()
-  const pathname = usePathname()
+  const router    = useRouter()
+  const pathname  = usePathname()
   const [online, setOnline]   = useState(false)
   const [novos, setNovos]     = useState(0)
   const [entId, setEntId]     = useState('')
-  const audioRef    = useRef<HTMLAudioElement | null>(null)
+  const audioRef     = useRef<HTMLAudioElement | null>(null)
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const tocarAlarme = useCallback(() => {
@@ -31,7 +31,8 @@ export default function EntregadorLayout({ children }: { children: React.ReactNo
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: e } = await supabase.from('entregadores').select('id, status').eq('usuario_id', user.id).single()
+      const { data: e } = await supabase
+        .from('entregadores').select('id, status').eq('usuario_id', user.id).single()
       if (!e) return
       setEntId(e.id)
       setOnline(e.status === 'online')
@@ -44,19 +45,14 @@ export default function EntregadorLayout({ children }: { children: React.ReactNo
         .subscribe()
     }
     init()
-
-    // O cron pg_cron 'force-offline-entregadores' (a cada minuto) garante
-    // que entregadores sem atividade recente sejam marcados offline automaticamente.
-    return () => {
-      pararHeartbeat()
-    }
+    return () => { pararHeartbeat() }
   }, [tocarAlarme])
 
   function iniciarHeartbeat(id: string) {
     pararHeartbeat()
     // Ping imediato
     supabase.from('entregadores').update({ atualizado_em: new Date().toISOString() }).eq('id', id)
-    // Ping a cada 5 minutos
+    // Ping a cada 5 minutos para o cron não derrubar (cron derruba após 10min sem heartbeat)
     heartbeatRef.current = setInterval(() => {
       supabase.from('entregadores').update({ atualizado_em: new Date().toISOString() }).eq('id', id)
     }, 5 * 60 * 1000)
@@ -72,19 +68,32 @@ export default function EntregadorLayout({ children }: { children: React.ReactNo
   async function toggleOnline() {
     if (!entId) return
     const novoStatus = online ? 'offline' : 'online'
-    if (!online && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async pos => {
-        await supabase.from('entregadores').update({
-          status: novoStatus,
-          lat_atual: pos.coords.latitude,
-          lng_atual: pos.coords.longitude,
-          atualizado_em: new Date().toISOString(),
-        }).eq('id', entId)
-        setOnline(true)
-        iniciarHeartbeat(entId)
-      })
+
+    // CORREÇÃO: Atualiza o status IMEDIATAMENTE — não espera GPS
+    // O GPS é capturado em segundo plano depois
+    const { error } = await supabase
+      .from('entregadores')
+      .update({ status: novoStatus, atualizado_em: new Date().toISOString() })
+      .eq('id', entId)
+
+    if (error) { console.error('Erro toggle online:', error.message); return }
+
+    if (novoStatus === 'online') {
+      setOnline(true)
+      iniciarHeartbeat(entId)
+      // Captura GPS em segundo plano sem bloquear o toggle
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async pos => {
+            await supabase.from('entregadores').update({
+              lat_atual: pos.coords.latitude,
+              lng_atual: pos.coords.longitude,
+            }).eq('id', entId)
+          },
+          () => {} // GPS falhou — tudo bem, status já está online
+        )
+      }
     } else {
-      await supabase.from('entregadores').update({ status: novoStatus }).eq('id', entId)
       setOnline(false)
       pararHeartbeat()
     }
