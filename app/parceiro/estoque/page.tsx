@@ -4,8 +4,18 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA } from '@/lib/constants'
 
-const CAT_ICONS: Record<string,string> = { alimentos:'🥗', bebidas:'🥤', higiene:'🧴', limpeza:'🧹', farmacia:'💊', outros:'📦' }
-const CAT_COR:   Record<string,string> = { alimentos:'#16A34A', bebidas:'#2563EB', higiene:'#7C3AED', limpeza:'#0891B2', farmacia:'#DC2626', outros:'#92400E' }
+const CAT_ICONS: Record<string,string> = {
+  bebidas:'🍺', conveniencia:'🏪', mercearia:'🛒', churrasco:'🥩',
+  tabacaria:'🚬', bomboniere:'🍬', petiscos:'🍿', terere:'🧉',
+  padaria:'🥖', farmacia:'💊', pet_shop:'🐾', material_construcao:'🔨',
+  alimentos:'🥗', higiene:'🧴', limpeza:'🧹', outros:'📦',
+}
+const CAT_COR: Record<string,string> = {
+  bebidas:'#2563EB', conveniencia:'#7C3AED', mercearia:'#16A34A', churrasco:'#DC2626',
+  tabacaria:'#92400E', bomboniere:'#D97706', petiscos:'#EA580C', terere:'#059669',
+  padaria:'#CA8A04', farmacia:'#0891B2', pet_shop:'#7C3AED', material_construcao:'#64748B',
+  alimentos:'#16A34A', higiene:'#0891B2', limpeza:'#0891B2', outros:'#64748B',
+}
 
 export default function ParceiroEstoque() {
   const [produtos, setProdutos]   = useState<any[]>([])
@@ -24,10 +34,21 @@ export default function ParceiroEstoque() {
   async function carregar() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data: p } = await supabase.from('parceiros').select('id').eq('usuario_id', user.id).single()
+    const { data: p } = await supabase.from('parceiros').select('id, categorias').eq('usuario_id', user.id).single()
     if (!p) return
     setParcId(p.id)
-    const { data: prods } = await supabase.from('produtos').select('*').eq('ativo', true).order('categoria').then(r => ({ ...r, data: r.data?.sort((a,b) => a.nome.localeCompare(b.nome)) }))
+
+    // Filtra produtos pelas categorias do parceiro
+    const cats: string[] = p.categorias ?? []
+    let query = supabase.from('produtos').select('*').eq('ativo', true)
+    if (cats.length > 0) query = query.in('categoria', cats)
+    const { data: prods } = await query.then(r => ({
+      ...r,
+      data: r.data?.sort((a: any, b: any) => {
+        const catDiff = a.categoria.localeCompare(b.categoria)
+        return catDiff !== 0 ? catDiff : a.nome.localeCompare(b.nome)
+      })
+    }))
     setProdutos(prods ?? [])
     const { data: est } = await supabase.from('estoque').select('id, produto_id, preco, quantidade').eq('parceiro_id', p.id)
     const map: Record<string, any> = {}
@@ -107,7 +128,7 @@ export default function ParceiroEstoque() {
       <div style={s.cabecalho}>
         <div>
           <h1 style={s.titulo}>Meu estoque</h1>
-          <p style={s.sub}>Preencha preço e quantidade — aguarda aprovação do Admin para aparecer na vitrine</p>
+          <p style={s.sub}>Produtos do seu ramo de atividade · Preencha preço e quantidade para aparecer na Vitrine</p>
         </div>
         <button onClick={salvarTudo} disabled={salvando || qtdAlterados===0}
           style={{ ...s.btnSalvar, opacity: qtdAlterados===0 ? 0.45 : 1 }}>
