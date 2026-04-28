@@ -196,7 +196,9 @@ export default function ParceiroEstoque() {
                     <div style={s.cellFoto}>
                       {p.imagem_url
                         ? <img src={p.imagem_url} alt={p.nome} style={s.thumb} />
-                        : <div style={s.thumbPlaceholder}>{CAT_ICONS[p.categoria]}</div>}
+                        : <div style={s.thumbPlaceholder}>
+                          <img src="/logo.png" alt="" style={{ width: 28, height: 28, objectFit: 'contain', opacity: 0.4 }} />
+                        </div>}
                     </div>
 
                     {/* Nome */}
