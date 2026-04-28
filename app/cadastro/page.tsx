@@ -67,7 +67,7 @@ export default function CadastroPage() {
   const [fraseIdx, setFraseIdx]   = useState(0)
   const [fraseVis, setFraseVis]   = useState(true)
   const [pitchFim, setPitchFim]   = useState(false)
-  const synthRef = useRef<SpeechSynthesis | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // Formulário parceiro
   const [formP, setFormP]           = useState({...VAZIO_PARCEIRO})
@@ -76,10 +76,9 @@ export default function CadastroPage() {
   const [erroParceiro, setErroParceiro] = useState('')
   const [loadingP, setLoadingP]     = useState(false)
 
-  // ── Pitch ──────────────────────────────────────────────────────
+  // ── Pitch com Google TTS ───────────────────────────────────────
   useEffect(() => {
     if (tela !== 'pitch') return
-    synthRef.current = window.speechSynthesis
     setFraseIdx(0)
     setFraseVis(true)
     setPitchFim(false)
@@ -90,20 +89,41 @@ export default function CadastroPage() {
     narrarFrase(fraseIdx)
   }, [fraseIdx, tela])
 
-  function narrarFrase(idx: number) {
-    if (!synthRef.current) return
-    synthRef.current.cancel()
-    const utter = new SpeechSynthesisUtterance(PITCH_FRASES[idx])
-    utter.lang = 'pt-BR'
-    utter.rate = 0.88
-    utter.pitch = 1.05
+  async function narrarFrase(idx: number) {
+    // Para áudio anterior se existir
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
 
-    // Escolhe voz em português se disponível
-    const vozes = synthRef.current.getVoices()
-    const vozPT = vozes.find(v => v.lang.startsWith('pt')) || vozes[0]
-    if (vozPT) utter.voice = vozPT
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto: PITCH_FRASES[idx] }),
+      })
+      const data = await res.json()
+      if (!data.audio) throw new Error('sem audio')
 
-    utter.onend = () => {
+      const audio = new Audio(`data:audio/mp3;base64,${data.audio}`)
+      audioRef.current = audio
+      audio.play()
+      audio.onended = () => {
+        setTimeout(() => {
+          setFraseVis(false)
+          setTimeout(() => {
+            const prox = idx + 1
+            if (prox < PITCH_FRASES.length) {
+              setFraseIdx(prox)
+              setFraseVis(true)
+            } else {
+              setPitchFim(true)
+            }
+          }, 400)
+        }, 600)
+      }
+    } catch {
+      // Fallback silencioso — avança após 2.5s
       setTimeout(() => {
         setFraseVis(false)
         setTimeout(() => {
@@ -115,13 +135,12 @@ export default function CadastroPage() {
             setPitchFim(true)
           }
         }, 400)
-      }, 600)
+      }, 2500)
     }
-    synthRef.current.speak(utter)
   }
 
   function pularPitch() {
-    synthRef.current?.cancel()
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
     setPitchFim(true)
   }
 
