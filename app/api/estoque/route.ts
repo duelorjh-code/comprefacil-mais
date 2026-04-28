@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { alterados } = body
-    const status = perfil.role === 'admin' ? 'aprovado' : 'pendente'
+    const status = 'aprovado' // parceiro salva direto — vitrine filtra por preco+quantidade
 
     // Busca estoque atual do parceiro
     const { data: estoqueAtual } = await admin.from('estoque')
