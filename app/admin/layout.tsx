@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { logout } from '@/lib/auth'
 import { AZUL, DOURADO, RODAPE } from '@/lib/constants'
+import { CidadeProvider, useCidade } from '@/lib/cidade-context'
 
 const MENU = [
   { href: '/admin',              icon: '📊', label: 'Dashboard'   },
@@ -17,7 +18,8 @@ const MENU = [
   { href: '/admin/alertas',      icon: '🗺️', label: 'Mapa Estratégico'},
 ]
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+function AdminLayoutInner({ children }: { children: React.ReactNode }) {
+  const { cidade, setCidade } = useCidade()
   const router   = useRouter()
   const pathname = usePathname()
   const [sidebarAberta, setSidebarAberta] = useState(false)
@@ -69,6 +71,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span style={s.adminBadge}>ADMIN</span>
         </div>
 
+        {/* Toggle cidade */}
+        <div style={s.cidadeToggle}>
+          <button onClick={() => setCidade('tl')}
+            style={{ ...s.cidadeBtn, background: cidade==='tl' ? '#fff' : 'transparent', color: cidade==='tl' ? AZUL : 'rgba(255,255,255,0.6)' }}>
+            🏙️ TL
+          </button>
+          <button onClick={() => setCidade('b')}
+            style={{ ...s.cidadeBtn, background: cidade==='b' ? '#D4A017' : 'transparent', color: cidade==='b' ? '#fff' : 'rgba(255,255,255,0.6)' }}>
+            🌆 BAURU
+          </button>
+        </div>
+
         {/* Menu */}
         <nav style={s.nav}>
           {MENU.map(item => {
@@ -111,8 +125,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   )
 }
 
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <CidadeProvider>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </CidadeProvider>
+  )
+}
+
 const s: Record<string, React.CSSProperties> = {
   root: { display: 'flex', minHeight: '100vh', fontFamily: "'Nunito', sans-serif" },
+  cidadeToggle: { display: 'flex', margin: '12px 16px 4px', background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 3 },
+  cidadeBtn:    { flex: 1, border: 'none', borderRadius: 8, padding: '7px 4px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 },
   sidebar: {
     width: 240, background: AZUL,
