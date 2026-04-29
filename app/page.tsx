@@ -8,7 +8,33 @@ import { redirecionarPorRole } from '@/lib/auth'
 const DATA_INAUGURACAO = new Date('2026-05-08T03:00:00Z')
 
 export default function HomePage() {
-  const router = useRouter()
+  const router   = useRouter()
+  const [pwaEvento, setPwaEvento] = useState<any>(null)
+  const [isIOS, setIsIOS]         = useState(false)
+  const [instalado, setInstalado] = useState(false)
+  const [showIOS, setShowIOS]     = useState(false)
+
+  useEffect(() => {
+    // Detecta se já está instalado como PWA
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setInstalado(true)
+    }
+    // iOS
+    const ua = navigator.userAgent
+    const ios = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream
+    setIsIOS(ios)
+    // Android — captura evento de instalação
+    const handler = (e: any) => { e.preventDefault(); setPwaEvento(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  async function instalarPWA() {
+    if (!pwaEvento) return
+    pwaEvento.prompt()
+    const { outcome } = await pwaEvento.userChoice
+    if (outcome === 'accepted') { setPwaEvento(null); setInstalado(true) }
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -51,6 +77,34 @@ export default function HomePage() {
             Cadastre-se agora e seja um dos primeiros a usar!
           </p>
         </div>
+
+        {/* Banner PWA — Android */}
+        {pwaEvento && !instalado && (
+          <div style={s.pwaBanner}>
+            <div style={s.pwaLeft}>
+              <img src="/icons/icon-192.png" alt="" style={s.pwaIcon} />
+              <div>
+                <div style={s.pwaTitulo}>Instalar CompreFácil+</div>
+                <div style={s.pwaSub}>Adicione à tela inicial</div>
+              </div>
+            </div>
+            <button onClick={instalarPWA} style={s.pwaBtnInstalar}>Instalar</button>
+          </div>
+        )}
+
+        {/* Banner PWA — iOS */}
+        {isIOS && !instalado && (
+          <button onClick={() => setShowIOS(v => !v)} style={s.pwaIOSBtn}>
+            📲 Instalar no iPhone
+          </button>
+        )}
+        {showIOS && (
+          <div style={s.pwaIOSCard}>
+            <div style={s.pwaIOSPasso}>1. Toque em <strong>Compartilhar</strong> <span style={{fontSize:16}}>⬆️</span></div>
+            <div style={s.pwaIOSPasso}>2. Role e toque em <strong>"Adicionar à Tela de Início"</strong></div>
+            <div style={s.pwaIOSPasso}>3. Toque em <strong>Adicionar</strong> ✅</div>
+          </div>
+        )}
 
         <div style={s.botoes}>
           <button onClick={() => router.push('/login')} style={s.btnEntrar}>
@@ -138,6 +192,15 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: 14, fontSize: 16, fontWeight: 700,
     letterSpacing: '0.02em', cursor: 'pointer', fontFamily: 'inherit',
   },
+  pwaBanner:      { display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.12)', border:'1.5px solid rgba(255,255,255,0.2)', borderRadius:14, padding:'12px 16px', width:'100%', backdropFilter:'blur(8px)' },
+  pwaLeft:        { display:'flex', alignItems:'center', gap:10 },
+  pwaIcon:        { width:40, height:40, borderRadius:10 },
+  pwaTitulo:      { color:'#fff', fontSize:13, fontWeight:800 },
+  pwaSub:         { color:'rgba(255,255,255,0.6)', fontSize:11 },
+  pwaBtnInstalar: { background:'#D4A017', color:'#fff', border:'none', borderRadius:10, padding:'8px 16px', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit', flexShrink:0 },
+  pwaIOSBtn:      { background:'rgba(255,255,255,0.12)', border:'1.5px solid rgba(255,255,255,0.25)', borderRadius:14, padding:'12px', fontSize:14, fontWeight:700, color:'rgba(255,255,255,0.9)', cursor:'pointer', fontFamily:'inherit', width:'100%' },
+  pwaIOSCard:     { background:'rgba(0,0,0,0.3)', borderRadius:14, padding:'16px', width:'100%', display:'flex', flexDirection:'column' as const, gap:10, backdropFilter:'blur(8px)' },
+  pwaIOSPasso:    { color:'rgba(255,255,255,0.85)', fontSize:13, lineHeight:1.5 },
   rodape: {
     position: 'fixed', bottom: 20,
     color: 'rgba(255,255,255,0.2)', fontSize: 11,
