@@ -69,7 +69,7 @@ export default function MapaEstrategico() {
     mapObj.current = map
   }
 
-  function renderizarMarcadores() {
+  async function renderizarMarcadores() {
     if (!mapObj.current) return
     const L = (window as any).L
     if (!L) { await iniciarMapa(); return }
