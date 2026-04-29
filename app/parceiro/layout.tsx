@@ -19,6 +19,9 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
   const [loja, setLoja]   = useState('')
   const [saldo, setSaldo] = useState(0)
   const [aberto, setAberto] = useState(false)
+  const [online, setOnline] = useState(false)
+  const [parcId, setParcId] = useState('')
+  const [toggling, setToggling] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
@@ -56,10 +59,10 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
       if (!user) { router.replace('/login'); return }
       const { data: p } = await supabase
         .from('parceiros')
-        .select('nome_fantasia, saldo, ativo')
+        .select('id, nome_fantasia, saldo, ativo')
         .eq('usuario_id', user.id)
         .single()
-      if (p) { setLoja(p.nome_fantasia); setSaldo(p.saldo ?? 0) }
+      if (p) { setLoja(p.nome_fantasia); setSaldo(p.saldo ?? 0); setOnline(p.ativo ?? false); setParcId(p.id ?? '') }
     }
     carregar()
 
@@ -77,6 +80,15 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
     router.replace('/')
   }
 
+  async function toggleOnline() {
+    if (!parcId) return
+    setToggling(true)
+    const novoStatus = !online
+    await supabase.from('parceiros').update({ ativo: novoStatus }).eq('id', parcId)
+    setOnline(novoStatus)
+    setToggling(false)
+  }
+
   const isAtivo = (href: string) =>
     href === '/parceiro' ? pathname === '/parceiro' : pathname.startsWith(href)
 
@@ -90,10 +102,21 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
           <div style={s.divider} />
           <div style={s.lojaWrap}>
             <div style={s.lojaNome}>{loja || '...'}</div>
-            <div style={s.lojaBadge}>
-              <span style={s.dot} />
-              Parceiro ativo
-            </div>
+            <button onClick={toggleOnline} disabled={toggling} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: online ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+              border: `1px solid ${online ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)'}`,
+              borderRadius: 20, padding: '5px 12px', cursor: 'pointer',
+              fontFamily: 'inherit', marginTop: 6,
+            }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                background: online ? '#22C55E' : '#EF4444',
+                boxShadow: online ? '0 0 6px #22C55E' : 'none',
+              }} />
+              <span style={{ fontSize: 11, fontWeight: 800, color: online ? '#22C55E' : '#EF4444' }}>
+                {toggling ? '...' : online ? 'ONLINE' : 'OFFLINE'}
+              </span>
+            </button>
           </div>
         </div>
 
