@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, VERDE, VERMELHO, DOURADO, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
 import { useCidade } from '@/lib/cidade-context'
+import Chat from '@/app/components/Chat'
 
 const CATEGORIAS_SISTEMA: Record<string, { nome: string; emoji: string }> = {
   bebidas:             { nome: 'Bebidas',               emoji: '🍺' },
@@ -59,8 +60,13 @@ export default function AdminParceiros() {
   const [senhaGerada, setSenhaGerada] = useState('')
   const [ativando, setAtivando]     = useState<string|null>(null)
   const [modalPend, setModalPend]   = useState<any|null>(null)
+  const [chatParceiro, setChatParceiro] = useState<{id:string,nome:string}|null>(null)
+  const [meuId, setMeuId]               = useState('')
 
   useEffect(() => { carregar() }, [cidade])
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setMeuId(user.id) })
+  }, [])
 
   async function carregar() {
     setLoadingPag(true)
@@ -475,6 +481,9 @@ export default function AdminParceiros() {
             </form>
           </div>
         </div>
+      )}
+      {chatParceiro && meuId && (
+        <Chat paraId={chatParceiro.id} paraNome={chatParceiro.nome} meuId={meuId} />
       )}
     </div>
   )
