@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   const [topParceiros, setTopParceiros] = useState<any[]>([])
   const [topEntregadores, setTopEntregadores] = useState<any[]>([])
   const [loading, setLoading]           = useState(true)
+  const [finBauru, setFinBauru]         = useState({ bruto: 0, fernando: 0, marcelo: 0 })
 
   useEffect(() => {
     carregar()
@@ -128,6 +129,20 @@ export default function AdminDashboard() {
       alertas_abertos:          alertas_abertos     ?? 0,
       pedidos_entregues:        entregues,
     })
+    // Financeiro Bauru (tabelas _b) — split 65% Fernando / 35% Marcelo
+    const { data: pedidosB } = await supabase
+      .from('pedidos_b')
+      .select('total, taxa_conveniencia')
+      .eq('status', 'entregue')
+    const brutoBauru   = (pedidosB ?? []).reduce((a: number, p: any) => a + (p.taxa_conveniencia ?? 0), 0)
+    const taxaEntregaB = (pedidosB ?? []).reduce((a: number, p: any) => a + ((p.total ?? 0) - (p.taxa_conveniencia ?? 0)), 0)
+    const totalBruto   = brutoBauru
+    setFinBauru({
+      bruto:    totalBruto,
+      fernando: +(totalBruto * 0.65).toFixed(2),
+      marcelo:  +(totalBruto * 0.35).toFixed(2),
+    })
+
     setLoading(false)
   }
 
@@ -146,7 +161,7 @@ export default function AdminDashboard() {
     { label: 'Financeiro',          valor: null,                             cor: DOURADO,   icone: '💳', financeiro: true },
     { label: 'Parceiros ativos',    valor: metricas!.parceiros_ativos,       cor: '#06B6D4', icone: '🏪' },
     { label: 'Entregadores online', valor: metricas!.entregadores_online,    cor: '#10B981', icone: '🛵' },
-    { label: 'Alertas abertos',     valor: metricas!.alertas_abertos,        cor: VERMELHO,  icone: '🔔' },
+    { label: 'Financeiro Bauru',     valor: null, cor: '#7C3AED', icone: '🌆', finBauru: true },
     { label: 'Entregas concluídas', valor: metricas!.pedidos_entregues,      cor: '#22C55E', icone: '✅' },
   ]
 
@@ -178,6 +193,21 @@ export default function AdminDashboard() {
                 <div style={s.finRow}>
                   <span style={s.finLabel}>App</span>
                   <span style={{ ...s.finValor, color: DOURADO }}>{formatBRL(metricas!.receita_app)}</span>
+                </div>
+              </div>
+            ) : c.finBauru ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div style={s.finRow}>
+                  <span style={s.finLabel}>Fernando (65%)</span>
+                  <span style={{ ...s.finValor, color: '#7C3AED' }}>{formatBRL(finBauru.fernando)}</span>
+                </div>
+                <div style={s.finRow}>
+                  <span style={s.finLabel}>Meu (35%)</span>
+                  <span style={{ ...s.finValor, color: DOURADO }}>{formatBRL(finBauru.marcelo)}</span>
+                </div>
+                <div style={s.finRow}>
+                  <span style={s.finLabel}>Bruto total</span>
+                  <span style={{ ...s.finValor, color: VERDE }}>{formatBRL(finBauru.bruto)}</span>
                 </div>
               </div>
             ) : (
