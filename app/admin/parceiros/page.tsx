@@ -60,9 +60,7 @@ export default function AdminParceiros() {
   const [ativando, setAtivando]     = useState<string|null>(null)
   const [modalPend, setModalPend]   = useState<any|null>(null)
 
-  useEffect(() => { carregarDados() }, [cidade])
-
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar() }, [cidade])
 
   async function carregar() {
     setLoadingPag(true)
