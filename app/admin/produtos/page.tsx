@@ -109,7 +109,7 @@ export default function AdminProdutos() {
         categoria: obj.categoria || 'outros',
         unidade_medida: obj.unidade_medida || 'un',
         arquivo_foto: obj.arquivo_foto || '',
-        status: 'pendente',
+        status: 'pendente' as const,
       }
     }).filter(i => i.nome)
     setItensImport(items)
