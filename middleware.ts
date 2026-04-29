@@ -82,7 +82,7 @@ export async function middleware(request: NextRequest) {
 
   const { data: perfil } = await supabase
     .from('perfis')
-    .select('role, bloqueado')
+    .select('role, bloqueado, telefone')
     .eq('id', session.user.id)
     .single()
 
@@ -96,7 +96,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Bloqueio de inauguração: cliente e entregador → /inauguracao
-  if (isAntesInauguracao() && ['cliente', 'entregador'].includes(perfil.role)) {
+  // Exceções: telefones liberados para teste antes da inauguração
+  const TELEFONES_LIBERADOS = ['67991929391']
+  const telefoneUsuario = perfil.telefone ?? ''
+  const isExcecao = TELEFONES_LIBERADOS.some(t => telefoneUsuario.includes(t))
+
+  if (isAntesInauguracao() && ['cliente', 'entregador'].includes(perfil.role) && !isExcecao) {
     return NextResponse.redirect(new URL('/inauguracao', request.url))
   }
 
