@@ -4,8 +4,21 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
 
-const CATEGORIAS = ['alimentos','bebidas','higiene','limpeza','farmacia','outros']
-const CAT_ICONS: Record<string,string> = { alimentos:'🥗', bebidas:'🥤', higiene:'🧴', limpeza:'🧹', farmacia:'💊', outros:'📦' }
+const CATEGORIAS_SISTEMA = [
+  { slug: 'todos',              nome: 'Todos',          emoji: '📦' },
+  { slug: 'bebidas',            nome: 'Bebidas',        emoji: '🍺' },
+  { slug: 'conveniencia',       nome: 'Conveniência',   emoji: '🏪' },
+  { slug: 'mercearia',          nome: 'Mercearia',      emoji: '🛒' },
+  { slug: 'churrasco',          nome: 'Churrasco',      emoji: '🥩' },
+  { slug: 'tabacaria',          nome: 'Tabacaria',      emoji: '🚬' },
+  { slug: 'bomboniere',         nome: 'Bomboniere',     emoji: '🍬' },
+  { slug: 'petiscos',           nome: 'Petiscos',       emoji: '🍿' },
+  { slug: 'terere',             nome: 'Tereré',         emoji: '🧉' },
+  { slug: 'padaria',            nome: 'Padaria',        emoji: '🥖' },
+  { slug: 'farmacia',           nome: 'Farmácia',       emoji: '💊' },
+  { slug: 'pet_shop',           nome: 'Pet Shop',       emoji: '🐾' },
+  { slug: 'material_construcao',nome: 'Construção',     emoji: '🔨' },
+]
 
 interface ProdutoImport {
   nome: string; descricao: string; categoria: string
@@ -16,7 +29,6 @@ interface ProdutoImport {
 export default function AdminProdutos() {
   const [produtos, setProdutos]       = useState<any[]>([])
   const [estoqueMap, setEstoqueMap]   = useState<Record<string, any[]>>({})
-  const [popover, setPopover]         = useState<string|null>(null)
   const [modal, setModal]             = useState(false)
   const [modalImport, setModalImport] = useState(false)
   const [importando, setImportando]   = useState(false)
@@ -41,40 +53,36 @@ export default function AdminProdutos() {
   async function carregar() {
     const { data: prods } = await supabase.from('produtos').select('*').order('nome')
     setProdutos(prods ?? [])
-
-    // Busca estoque de todos os parceiros para todos os produtos
     const { data: est } = await supabase
-      .from('estoque')
-      .select('produto_id, preco, quantidade, parceiros ( nome_fantasia )')
-      .gt('quantidade', 0)
-      .gt('preco', 0)
-      .eq('ativo', true)
-
-    // Agrupa por produto_id
+      .from('estoque').select('produto_id, preco, quantidade, parceiros ( nome_fantasia )')
+      .gt('quantidade', 0).gt('preco', 0).eq('ativo', true)
     const map: Record<string, any[]> = {}
     ;(est ?? []).forEach((e: any) => {
       if (!map[e.produto_id]) map[e.produto_id] = []
       map[e.produto_id].push({ nome: e.parceiros?.nome_fantasia, preco: e.preco, quantidade: e.quantidade })
     })
-    // Ordena por menor preço
     Object.keys(map).forEach(k => map[k].sort((a,b) => a.preco - b.preco))
     setEstoqueMap(map)
   }
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
-    if (!nome || !foto) return setErro('Nome e foto são obrigatórios.')
+    if (!nome) return setErro('Nome é obrigatório.')
     setLoading(true); setErro('')
     const { data: { user } } = await supabase.auth.getUser()
-    const ext  = foto.name.split('.').pop()
-    const path = `${Date.now()}.${ext}`
-    const { error: upErr } = await supabase.storage.from('produtos').upload(path, foto, { upsert: true })
-    if (upErr) { setLoading(false); return setErro('Erro no upload da foto.') }
-    const { data: url } = supabase.storage.from('produtos').getPublicUrl(path)
+    let imagem_url = ''
+    if (foto) {
+      const ext  = foto.name.split('.').pop()
+      const path = `${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('produtos').upload(path, foto, { upsert: true })
+      if (!upErr) {
+        const { data: url } = supabase.storage.from('produtos').getPublicUrl(path)
+        imagem_url = url.publicUrl
+      }
+    }
     const { error } = await supabase.from('produtos').insert({
       nome: nome.trim(), descricao: descricao.trim(), categoria,
-      unidade_medida: unidade, imagem_url: url.publicUrl,
-      ativo: true, criado_por: user?.id,
+      unidade_medida: unidade, imagem_url, ativo: true, criado_por: user?.id,
     })
     setLoading(false)
     if (error) return setErro('Erro ao salvar produto.')
@@ -82,81 +90,44 @@ export default function AdminProdutos() {
     carregar()
   }
 
-  function handleCSV(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string
-      const lines = text.split('\n').filter(l => l.trim())
-      const header = lines[0].split(',').map(h => h.trim().replace(/"/g,''))
-      const items: ProdutoImport[] = lines.slice(1).map(line => {
-        const vals = line.split(',').map(v => v.trim().replace(/"/g,''))
-        const obj: any = {}
-        header.forEach((h, i) => { obj[h] = vals[i] ?? '' })
-        return { ...obj, status: 'pendente' }
-      }).filter((i:any) => i.nome)
-
-      // Casa com fotos já selecionadas
-      const comFoto = items.map(item => ({
-        ...item,
-        foto: fotosImport.find(f => f.name === item.arquivo_foto)
-      }))
-      setItensImport(comFoto)
-    }
-    reader.readAsText(file)
-  }
-
-  function handleFotosImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    setFotosImport(files)
-    // Casa com CSV já carregado
-    if (itensImport.length > 0) {
-      setItensImport(prev => prev.map(item => ({
-        ...item,
-        foto: files.find(f => f.name === item.arquivo_foto)
-      })))
-    }
-  }
-
-  async function executarImport() {
-    if (itensImport.length === 0) return
-    setImportando(true); setProgresso(0)
-    const { data: { user } } = await supabase.auth.getUser()
-    const total = itensImport.length
-
-    for (let i = 0; i < total; i++) {
-      const item = itensImport[i]
-      setItensImport(prev => prev.map((it, idx) => idx===i ? {...it, status:'enviando'} : it))
-      try {
-        let imagem_url = ''
-        if (item.foto) {
-          const ext  = item.foto.name.split('.').pop()
-          const path = `${Date.now()}-${i}.${ext}`
-          const { error: upErr } = await supabase.storage.from('produtos').upload(path, item.foto, { upsert: true })
-          if (!upErr) {
-            const { data: url } = supabase.storage.from('produtos').getPublicUrl(path)
-            imagem_url = url.publicUrl
-          }
-        }
-        const { error } = await supabase.from('produtos').insert({
-          nome: item.nome.trim(), descricao: item.descricao?.trim() ?? '',
-          categoria: CATEGORIAS.includes(item.categoria) ? item.categoria : 'outros',
-          unidade_medida: item.unidade_medida || 'un',
-          imagem_url, ativo: true, criado_por: user?.id,
-        })
-        setItensImport(prev => prev.map((it, idx) => idx===i ? {...it, status: error?'erro':'ok', erro: error?.message} : it))
-      } catch (e: any) {
-        setItensImport(prev => prev.map((it, idx) => idx===i ? {...it, status:'erro', erro: e.message} : it))
-      }
-      setProgresso(Math.round(((i+1)/total)*100))
-    }
-    setImportando(false)
+  async function toggleAtivo(id: string, ativo: boolean) {
+    await supabase.from('produtos').update({ ativo: !ativo }).eq('id', id)
     carregar()
   }
 
-  async function toggleAtivo(id: string, ativo: boolean) {
-    await supabase.from('produtos').update({ ativo: !ativo }).eq('id', id)
+  async function processarCSV(file: File) {
+    const texto = await file.text()
+    const linhas = texto.split('\n').filter(l => l.trim())
+    const headers = linhas[0].split(',').map(h => h.trim().toLowerCase())
+    const items: ProdutoImport[] = linhas.slice(1).map(linha => {
+      const cols = linha.split(',').map(c => c.trim().replace(/^"|"$/g,''))
+      const obj: any = {}
+      headers.forEach((h, i) => obj[h] = cols[i] ?? '')
+      return {
+        nome: obj.nome || '',
+        descricao: obj.descricao || obj.nome || '',
+        categoria: obj.categoria || 'outros',
+        unidade_medida: obj.unidade_medida || 'un',
+        arquivo_foto: obj.arquivo_foto || '',
+        status: 'pendente',
+      }
+    }).filter(i => i.nome)
+    setItensImport(items)
+  }
+
+  async function executarImport() {
+    setImportando(true)
+    for (let i = 0; i < itensImport.length; i++) {
+      const item = itensImport[i]
+      setItensImport(prev => prev.map((p,idx) => idx===i ? {...p,status:'enviando'} : p))
+      const { error } = await supabase.from('produtos').insert({
+        nome: item.nome, descricao: item.descricao,
+        categoria: item.categoria, unidade_medida: item.unidade_medida, ativo: true,
+      })
+      setItensImport(prev => prev.map((p,idx) => idx===i ? {...p,status:error?'erro':'ok',erro:error?.message} : p))
+      setProgresso(Math.round(((i+1)/itensImport.length)*100))
+    }
+    setImportando(false)
     carregar()
   }
 
@@ -166,134 +137,159 @@ export default function AdminProdutos() {
     return true
   })
 
-  const okCount   = itensImport.filter(i => i.status==='ok').length
-  const errCount  = itensImport.filter(i => i.status==='erro').length
-
   return (
     <div style={s.wrap} className="anim-fadeIn">
+      {/* Cabeçalho */}
       <div style={s.cabecalho}>
-        <h1 style={s.titulo}>Produtos <span style={s.count}>{produtos.length}</span></h1>
+        <h1 style={s.titulo}>Produtos <span style={s.countBadge}>{produtos.length}</span></h1>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={() => setModalImport(true)} style={s.btnImport}>📥 Importar CSV</button>
-          <button onClick={() => setModal(true)} style={s.btnNovo}>+ Novo produto</button>
+          <button onClick={() => setModalImport(true)} style={s.btnSecundario}>
+            📥 Importar CSV
+          </button>
+          <button onClick={() => setModal(true)} style={s.btnNovo}>
+            + Novo produto
+          </button>
         </div>
       </div>
 
-      <div style={s.filtros}>
-        <input style={s.busca} placeholder="🔍  Buscar produto…" value={busca} onChange={e => setBusca(e.target.value)} />
-        <div style={s.cats}>
-          <button onClick={() => setFiltroCat('todos')} style={{ ...s.catBtn, ...(filtroCat==='todos'?s.catAtivo:{}) }}>Todos</button>
-          {CATEGORIAS.map(c => (
-            <button key={c} onClick={() => setFiltroCat(c)} style={{ ...s.catBtn, ...(filtroCat===c?s.catAtivo:{}) }}>
-              {CAT_ICONS[c]} {c}
-            </button>
-          ))}
-        </div>
+      {/* Busca */}
+      <input style={s.busca} placeholder="🔍  Buscar produto..."
+        value={busca} onChange={e => setBusca(e.target.value)} />
+
+      {/* Filtros de categoria — chips */}
+      <div style={s.chips}>
+        {CATEGORIAS_SISTEMA.map(cat => (
+          <button key={cat.slug} onClick={() => setFiltroCat(cat.slug)}
+            style={{
+              ...s.chip,
+              background: filtroCat === cat.slug ? AZUL : '#F4F6FB',
+              color: filtroCat === cat.slug ? '#fff' : TEXTO_MEIO,
+              border: `1.5px solid ${filtroCat === cat.slug ? AZUL : CINZA_BORDA}`,
+            }}>
+            {cat.emoji} {cat.nome}
+            {cat.slug !== 'todos' && (
+              <span style={{ ...s.chipCount, background: filtroCat === cat.slug ? 'rgba(255,255,255,0.25)' : '#E2E8F0' }}>
+                {produtos.filter(p => p.categoria === cat.slug).length}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
-      <div style={s.grid}>
-        {filtrados.map(p => {
+      {/* Tabela de produtos */}
+      <div style={s.tabela}>
+        <div style={s.tableHeader}>
+          <div style={{ width: 48 }} />
+          <div style={{ flex: 1 }}>PRODUTO</div>
+          <div style={s.hCol}>CATEGORIA</div>
+          <div style={s.hCol}>UNID</div>
+          <div style={s.hCol}>PARCEIROS</div>
+          <div style={s.hCol}>STATUS</div>
+          <div style={s.hCol}>AÇÃO</div>
+        </div>
+
+        {filtrados.map((p, idx) => {
+          const cat = CATEGORIAS_SISTEMA.find(c => c.slug === p.categoria)
           const parceiros = estoqueMap[p.id] ?? []
-          const menorPreco = parceiros[0]
           return (
-            <div key={p.id} style={{ ...s.card, opacity: p.ativo ? 1 : 0.55 }}>
-              <div style={s.fotoWrap}>
+            <div key={p.id} style={{ ...s.row, background: idx % 2 === 0 ? '#fff' : '#F8FAFC' }}>
+              {/* Foto */}
+              <div style={s.cellFoto}>
                 {p.imagem_url
-                  ? <img src={p.imagem_url} alt={p.nome} style={s.foto} />
-                  : <div style={s.fotoPlaceholder}>{CAT_ICONS[p.categoria]}</div>
-                }
-                <span style={s.catTag}>{CAT_ICONS[p.categoria]} {p.categoria}</span>
-                {menorPreco && <span style={s.promoTag}>🏷️ {formatBRL(menorPreco.preco)}</span>}
-              </div>
-
-              <div style={s.cardBody}>
-                <div style={s.cardNome}>{p.nome}</div>
-                <div style={s.cardMeta}>
-                  <span style={{ fontSize:11, color:TEXTO_MEIO }}>{p.unidade_medida}</span>
-                  <span style={{ ...s.pillStatus, background: p.ativo?'#22C55E20':'#EF444420', color: p.ativo?VERDE:VERMELHO }}>
-                    {p.ativo?'Ativo':'Inativo'}
-                  </span>
-                </div>
-
-                {/* Indicador de parceiros */}
-                <div style={s.parceirosWrap}>
-                  <button onClick={() => setPopover(popover===p.id ? null : p.id)}
-                    style={{ ...s.parceirosBtn, background: parceiros.length>0?'#EEF2FF':'#F4F6FB', color: parceiros.length>0?AZUL:TEXTO_MEIO }}>
-                    🏪 {parceiros.length} parceiro{parceiros.length!==1?'s':''} em estoque
-                  </button>
-
-                  {popover === p.id && (
-                    <div style={s.popover}>
-                      <div style={s.popoverTitulo}>Parceiros com estoque</div>
-                      {parceiros.length === 0 ? (
-                        <div style={{ fontSize:12, color:TEXTO_MEIO, padding:'8px 0' }}>Nenhum parceiro com estoque.</div>
-                      ) : parceiros.map((parc, i) => (
-                        <div key={i} style={s.popoverItem}>
-                          <span style={s.popoverNome}>{parc.nome}</span>
-                          <span style={{ ...s.popoverPreco, color: i===0?VERDE:TEXTO }}>
-                            {formatBRL(parc.preco)}
-                            {i===0 && <span style={s.menorTag}> ★</span>}
-                          </span>
-                          <span style={{ ...s.popoverQtd, color: parc.quantidade<=5?LARANJA:TEXTO_MEIO }}>
-                            {parc.quantidade} un
-                          </span>
-                        </div>
-                      ))}
+                  ? <img src={p.imagem_url} alt={p.nome} style={s.thumb} />
+                  : <div style={s.thumbPlaceholder}>
+                      <img src="/logo.png" alt="" style={{ width: 28, height: 28, objectFit: 'contain', opacity: 0.35 }} />
                     </div>
-                  )}
-                </div>
-
+                }
+              </div>
+              {/* Nome */}
+              <div style={{ flex: 1, padding: '0 12px' }}>
+                <div style={s.prodNome}>{p.nome}</div>
+                {p.descricao && p.descricao !== p.nome && (
+                  <div style={s.prodDesc}>{p.descricao.slice(0, 60)}{p.descricao.length > 60 ? '…' : ''}</div>
+                )}
+              </div>
+              {/* Categoria */}
+              <div style={s.cell}>
+                <span style={{ ...s.catPill, background: AZUL + '15', color: AZUL }}>
+                  {cat?.emoji} {cat?.nome ?? p.categoria}
+                </span>
+              </div>
+              {/* Unidade */}
+              <div style={{ ...s.cell, color: TEXTO_MEIO }}>{p.unidade_medida}</div>
+              {/* Parceiros */}
+              <div style={s.cell}>
+                {parceiros.length > 0
+                  ? <span style={{ fontSize: 12, fontWeight: 700, color: VERDE }}>✅ {parceiros.length}</span>
+                  : <span style={{ fontSize: 12, color: '#CBD5E1' }}>○ 0</span>
+                }
+              </div>
+              {/* Status */}
+              <div style={s.cell}>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                  background: p.ativo ? '#DCFCE7' : '#FEE2E2',
+                  color: p.ativo ? '#15803D' : VERMELHO,
+                }}>
+                  {p.ativo ? 'Ativo' : 'Inativo'}
+                </span>
+              </div>
+              {/* Ação */}
+              <div style={s.cell}>
                 <button onClick={() => toggleAtivo(p.id, p.ativo)}
-                  style={{ ...s.btnToggle, color: p.ativo?VERMELHO:VERDE }}>
-                  {p.ativo?'Desativar':'Ativar'}
+                  style={{ ...s.btnAcao, color: p.ativo ? VERMELHO : VERDE }}>
+                  {p.ativo ? 'Desativar' : 'Ativar'}
                 </button>
               </div>
             </div>
           )
         })}
+
+        {filtrados.length === 0 && (
+          <div style={{ padding: '48px', textAlign: 'center', color: TEXTO_MEIO }}>
+            Nenhum produto encontrado.
+          </div>
+        )}
       </div>
 
       {/* Modal novo produto */}
       {modal && (
-        <div style={s.overlay} onClick={e => e.target===e.currentTarget && setModal(false)}>
-          <div style={s.modal} className="anim-fadeUp">
+        <div style={s.overlay} onClick={e => e.target === e.currentTarget && setModal(false)}>
+          <div style={s.modal}>
             <div style={s.modalTop}>
               <h2 style={s.modalTitulo}>Novo produto</h2>
               <button onClick={() => setModal(false)} style={s.fechar}>✕</button>
             </div>
             <form onSubmit={salvar} style={s.form}>
               <div style={s.campo}><label style={s.label}>Nome *</label>
-                <input style={s.input} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Coca-Cola Lata 350ml" required />
-              </div>
+                <input style={s.input} value={nome} onChange={e => setNome(e.target.value)} required /></div>
               <div style={s.campo}><label style={s.label}>Descrição</label>
-                <textarea style={{ ...s.input, resize:'none', height:64 }} value={descricao} onChange={e => setDescricao(e.target.value)} />
-              </div>
+                <input style={s.input} value={descricao} onChange={e => setDescricao(e.target.value)} /></div>
               <div style={s.grid2}>
-                <div style={s.campo}><label style={s.label}>Categoria *</label>
+                <div style={s.campo}><label style={s.label}>Categoria</label>
                   <select style={s.input} value={categoria} onChange={e => setCategoria(e.target.value)}>
-                    {CATEGORIAS.map(c => <option key={c} value={c}>{CAT_ICONS[c]} {c}</option>)}
+                    {CATEGORIAS_SISTEMA.filter(c => c.slug !== 'todos').map(c => (
+                      <option key={c.slug} value={c.slug}>{c.emoji} {c.nome}</option>
+                    ))}
                   </select>
                 </div>
                 <div style={s.campo}><label style={s.label}>Unidade</label>
                   <select style={s.input} value={unidade} onChange={e => setUnidade(e.target.value)}>
-                    {['un','kg','g','L','ml','cx','pct','par'].map(u => <option key={u}>{u}</option>)}
+                    {['un','kg','g','l','ml','pct','cx','fardo','dp'].map(u => <option key={u}>{u}</option>)}
                   </select>
                 </div>
               </div>
-              <div style={s.campo}><label style={s.label}>Foto *</label>
+              <div style={s.campo}><label style={s.label}>Foto do produto</label>
                 <label style={s.uploadLabel}>
                   <input type="file" accept="image/*" style={{ display:'none' }}
-                    onChange={e => { const f=e.target.files?.[0]; if(f){setFoto(f);setFotoNome(f.name)} }} />
-                  🖼️ {fotoNome || 'Selecionar imagem'}
+                    onChange={e => { const f = e.target.files?.[0]; if(f){setFoto(f);setFotoNome(f.name)} }} />
+                  📎 {fotoNome || 'Selecionar imagem'}
                 </label>
               </div>
-              {erro && <p style={s.erro}>{erro}</p>}
-              <div style={s.acoes}>
-                <button type="button" onClick={() => setModal(false)} style={s.btnCancelar}>Cancelar</button>
-                <button type="submit" disabled={loading} style={{ ...s.btnSalvar, opacity:loading?0.7:1 }}>
-                  {loading?'Salvando…':'Adicionar'}
-                </button>
-              </div>
+              {erro && <p style={{ color: VERMELHO, fontSize: 13 }}>{erro}</p>}
+              <button type="submit" disabled={loading} style={s.btnSalvar}>
+                {loading ? 'Salvando...' : 'Salvar produto'}
+              </button>
             </form>
           </div>
         </div>
@@ -301,90 +297,48 @@ export default function AdminProdutos() {
 
       {/* Modal importar CSV */}
       {modalImport && (
-        <div style={s.overlay} onClick={e => e.target===e.currentTarget && !importando && setModalImport(false)}>
-          <div style={{ ...s.modal, maxWidth:600 }} className="anim-fadeUp">
+        <div style={s.overlay} onClick={e => e.target === e.currentTarget && setModalImport(false)}>
+          <div style={s.modal}>
             <div style={s.modalTop}>
-              <h2 style={s.modalTitulo}>Importar produtos via CSV</h2>
-              {!importando && <button onClick={() => setModalImport(false)} style={s.fechar}>✕</button>}
+              <h2 style={s.modalTitulo}>Importar CSV</h2>
+              <button onClick={() => setModalImport(false)} style={s.fechar}>✕</button>
             </div>
-
-            {itensImport.length === 0 ? (
-              <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-                <div style={s.instrucoes}>
-                  <p style={{ fontWeight:700, marginBottom:8 }}>Como usar:</p>
-                  <p>1. Baixe o modelo CSV</p>
-                  <p>2. Preencha com seus produtos</p>
-                  <p>3. Selecione as fotos — nome do arquivo deve bater com a coluna <code>arquivo_foto</code></p>
-                  <p>4. Selecione o CSV</p>
-                  <p>5. Clique em Importar</p>
-                </div>
-                <a href="data:text/csv;charset=utf-8,nome,descricao,categoria,unidade_medida,arquivo_foto%0AAmstel+Lata+350ml,Cerveja+Amstel+lata+350ml,bebidas,un,amstel-lata-350ml.jpg"
-                  download="modelo-produtos.csv" style={s.btnDownload}>📄 Baixar modelo CSV</a>
-
-                <div style={s.campo}><label style={s.label}>1. Selecione as fotos (múltiplas)</label>
-                  <label style={s.uploadLabel}>
-                    <input ref={fotosRef} type="file" accept="image/*" multiple style={{ display:'none' }} onChange={handleFotosImport} />
-                    🖼️ {fotosImport.length>0 ? `✅ ${fotosImport.length} foto(s) selecionada(s)` : 'Selecionar fotos'}
-                  </label>
-                </div>
-                <div style={s.campo}><label style={s.label}>2. Selecione o CSV</label>
-                  <label style={s.uploadLabel}>
-                    <input ref={csvRef} type="file" accept=".csv" style={{ display:'none' }} onChange={handleCSV} />
-                    📋 {itensImport.length>0 ? `✅ ${itensImport.length} produto(s) carregado(s)` : 'Selecionar CSV'}
-                  </label>
-                </div>
-
-                {fotosImport.length>0 && itensImport.length>0 && (
-                  <button onClick={executarImport} style={{ ...s.btnSalvar, background:VERDE }}>
-                    ▶ Importar {itensImport.length} produtos com {fotosImport.length} fotos
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                {importando && (
-                  <div style={s.progressoWrap}>
-                    <div style={s.progressoBar}><div style={{ ...s.progressoFill, width:`${progresso}%` }} /></div>
-                    <span style={{ fontSize:13, fontWeight:700, color:AZUL }}>{progresso}%</span>
+            <div style={s.form}>
+              <p style={{ fontSize: 13, color: TEXTO_MEIO }}>
+                CSV com colunas: <code>nome, descricao, categoria, unidade_medida, arquivo_foto</code>
+              </p>
+              <label style={s.uploadLabel}>
+                <input ref={csvRef} type="file" accept=".csv" style={{ display:'none' }}
+                  onChange={e => { const f = e.target.files?.[0]; if(f) processarCSV(f) }} />
+                📄 Selecionar arquivo CSV
+              </label>
+              {itensImport.length > 0 && (
+                <>
+                  <div style={{ fontSize: 13, color: TEXTO_MEIO }}>{itensImport.length} produtos encontrados</div>
+                  <div style={{ maxHeight: 240, overflowY: 'auto', border: `1px solid ${CINZA_BORDA}`, borderRadius: 8 }}>
+                    {itensImport.map((item, i) => (
+                      <div key={i} style={{ padding: '8px 12px', borderBottom: `1px solid ${CINZA_BORDA}`, display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span>{item.nome}</span>
+                        <span style={{ color: item.status==='ok' ? VERDE : item.status==='erro' ? VERMELHO : TEXTO_MEIO }}>
+                          {item.status === 'ok' ? '✅' : item.status === 'erro' ? '❌' : item.status === 'enviando' ? '⏳' : '○'}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                )}
-                {!importando && okCount+errCount===itensImport.length && (
-                  <div style={{ ...s.instrucoes, background: okCount===itensImport.length?'#22C55E15':'#FFF1F1' }}>
-                    ✅ {okCount} importados {errCount>0 && `| ❌ ${errCount} com erro`}
-                  </div>
-                )}
-                <div style={s.listaImport}>
-                  {itensImport.map((item, i) => (
-                    <div key={i} style={s.itemImport}>
-                      <span style={{ fontSize:16 }}>
-                        {item.status==='ok'?'✅':item.status==='erro'?'❌':item.status==='enviando'?'⏳':'○'}
-                      </span>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:TEXTO }}>{item.nome}</div>
-                        <div style={{ fontSize:11, color:TEXTO_MEIO }}>
-                          {item.categoria} · {item.unidade_medida} {item.foto?'📸 foto ok':'⚠️ sem foto'}
-                        </div>
-                        {item.erro && <div style={{ fontSize:11, color:VERMELHO }}>{item.erro}</div>}
+                  {importando && (
+                    <div style={{ background: '#F4F6FB', borderRadius: 8, padding: 12 }}>
+                      <div style={{ fontSize: 12, color: TEXTO_MEIO, marginBottom: 6 }}>Importando... {progresso}%</div>
+                      <div style={{ height: 6, background: '#E2E8F0', borderRadius: 3 }}>
+                        <div style={{ height: 6, background: AZUL, borderRadius: 3, width: `${progresso}%`, transition: 'width 0.3s' }} />
                       </div>
                     </div>
-                  ))}
-                </div>
-                {!importando && okCount+errCount<itensImport.length && (
-                  <button onClick={executarImport} style={{ ...s.btnSalvar, background:VERDE }}>
-                    ▶ Importar {itensImport.length} produtos
+                  )}
+                  <button onClick={executarImport} disabled={importando} style={s.btnSalvar}>
+                    {importando ? `Importando ${progresso}%...` : `Importar ${itensImport.length} produtos`}
                   </button>
-                )}
-                {!importando && (
-                  <button onClick={() => { setItensImport([]); setFotosImport([]);
-                    if(csvRef.current) csvRef.current.value='';
-                    if(fotosRef.current) fotosRef.current.value='';
-                    if(okCount+errCount===itensImport.length) setModalImport(false)
-                  }} style={s.btnCancelar}>
-                    {okCount+errCount===itensImport.length?'Fechar':'Limpar e recomeçar'}
-                  </button>
-                )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -393,58 +347,38 @@ export default function AdminProdutos() {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  wrap: { display:'flex', flexDirection:'column', gap:20 },
-  cabecalho: { display:'flex', alignItems:'center', justifyContent:'space-between' },
-  titulo: { fontSize:22, fontWeight:800, color:TEXTO, display:'flex', alignItems:'center', gap:8 },
-  count: { fontSize:14, fontWeight:600, color:TEXTO_MEIO, background:'#F4F6FB', padding:'2px 10px', borderRadius:20 },
-  btnImport: { background:'#EEF2FF', color:AZUL, border:`1.5px solid #C7D2FE`, borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' },
-  btnNovo: { background:AZUL, color:'#fff', border:'none', borderRadius:10, padding:'10px 18px', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' },
-  filtros: { display:'flex', flexDirection:'column', gap:12 },
-  busca: { border:`1.5px solid ${CINZA_BORDA}`, borderRadius:10, padding:'10px 14px', fontSize:14, background:'#fff', outline:'none', fontFamily:'inherit', color:TEXTO, width:'100%' },
-  cats: { display:'flex', gap:8, flexWrap:'wrap' as const },
-  catBtn: { padding:'6px 14px', borderRadius:20, border:`1.5px solid ${CINZA_BORDA}`, background:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', color:TEXTO_MEIO, fontFamily:'inherit', textTransform:'capitalize' as const },
-  catAtivo: { background:AZUL, color:'#fff', borderColor:AZUL },
-  grid: { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:16 },
-  card: { background:'#fff', borderRadius:14, overflow:'hidden', boxShadow:'0 1px 8px rgba(27,47,94,0.06)', display:'flex', flexDirection:'column', position:'relative' },
-  fotoWrap: { position:'relative', height:160, background:'#F4F6FB', overflow:'hidden' },
-  foto: { width:'100%', height:'100%', objectFit:'cover' },
-  fotoPlaceholder: { display:'flex', alignItems:'center', justifyContent:'center', height:'100%', fontSize:48 },
-  catTag: { position:'absolute', bottom:8, left:8, background:'rgba(0,0,0,0.6)', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, textTransform:'capitalize' as const },
-  promoTag: { position:'absolute', top:8, right:8, background:DOURADO, color:'#fff', fontSize:11, fontWeight:800, padding:'3px 8px', borderRadius:10 },
-  cardBody: { padding:'14px', display:'flex', flexDirection:'column', gap:8, flex:1 },
-  cardNome: { fontSize:14, fontWeight:800, color:TEXTO },
-  cardMeta: { display:'flex', justifyContent:'space-between', alignItems:'center' },
-  pillStatus: { fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20 },
-  parceirosWrap: { position:'relative' },
-  parceirosBtn: { width:'100%', padding:'7px 10px', borderRadius:8, border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', textAlign:'left' as const },
-  popover: { position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', borderRadius:10, boxShadow:'0 4px 20px rgba(0,0,0,0.15)', padding:'12px', zIndex:50, border:`1px solid ${CINZA_BORDA}` },
-  popoverTitulo: { fontSize:11, fontWeight:800, color:TEXTO_MEIO, textTransform:'uppercase' as const, letterSpacing:'0.06em', marginBottom:8 },
-  popoverItem: { display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:`1px solid ${CINZA_BORDA}` },
-  popoverNome: { flex:1, fontSize:13, color:TEXTO, fontWeight:600 },
-  popoverPreco: { fontSize:13, fontWeight:800 },
-  popoverQtd: { fontSize:12, fontWeight:600 },
-  menorTag: { color:VERDE },
-  btnToggle: { background:'none', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', textAlign:'left' as const, padding:0 },
-  overlay: { position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:20 },
-  modal: { background:'#fff', borderRadius:20, padding:'28px 24px', width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', display:'flex', flexDirection:'column', gap:20 },
-  modalTop: { display:'flex', justifyContent:'space-between', alignItems:'center' },
-  modalTitulo: { fontSize:18, fontWeight:800, color:TEXTO },
-  fechar: { background:'none', border:'none', fontSize:20, cursor:'pointer', color:TEXTO_MEIO },
-  form: { display:'flex', flexDirection:'column', gap:16 },
-  campo: { display:'flex', flexDirection:'column', gap:5 },
-  label: { fontSize:12, fontWeight:700, color:TEXTO },
-  input: { border:`1.5px solid ${CINZA_BORDA}`, borderRadius:10, padding:'11px 13px', fontSize:14, color:TEXTO, background:'#FAFBFE', outline:'none', fontFamily:'inherit', width:'100%' },
-  uploadLabel: { padding:'11px 13px', border:`1.5px dashed ${CINZA_BORDA}`, borderRadius:10, fontSize:13, color:TEXTO_MEIO, cursor:'pointer', textAlign:'center' as const, fontWeight:600 },
-  grid2: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 },
-  erro: { fontSize:13, color:'#EF4444', fontWeight:600, background:'#FFF1F1', borderRadius:10, padding:'10px 14px', border:'1px solid #FEE2E2' },
-  acoes: { display:'flex', justifyContent:'flex-end', gap:12 },
-  btnCancelar: { padding:'11px 18px', borderRadius:10, border:`1.5px solid ${CINZA_BORDA}`, background:'#fff', color:TEXTO_MEIO, fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' },
-  btnSalvar: { padding:'11px 20px', borderRadius:10, background:AZUL, color:'#fff', border:'none', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit' },
-  instrucoes: { background:'#F4F6FB', borderRadius:10, padding:'14px', fontSize:13, color:TEXTO_MEIO, lineHeight:1.8 },
-  btnDownload: { display:'block', padding:'11px', background:'#EEF2FF', color:AZUL, borderRadius:10, textAlign:'center' as const, fontSize:13, fontWeight:700, textDecoration:'none', border:`1.5px solid #C7D2FE` },
-  progressoWrap: { display:'flex', alignItems:'center', gap:12 },
-  progressoBar: { flex:1, height:8, background:'#F4F6FB', borderRadius:4, overflow:'hidden' },
-  progressoFill: { height:'100%', background:AZUL, borderRadius:4, transition:'width 0.3s ease' },
-  listaImport: { display:'flex', flexDirection:'column', gap:8, maxHeight:300, overflowY:'auto' },
-  itemImport: { display:'flex', alignItems:'flex-start', gap:10, padding:'8px 12px', background:'#F4F6FB', borderRadius:8 },
+  wrap:        { display: 'flex', flexDirection: 'column', gap: 16 },
+  cabecalho:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  titulo:      { fontSize: 22, fontWeight: 800, color: TEXTO, margin: 0, display: 'flex', alignItems: 'center', gap: 10 },
+  countBadge:  { fontSize: 13, fontWeight: 700, background: '#EEF2FF', color: AZUL, padding: '2px 10px', borderRadius: 20 },
+  btnNovo:     { background: AZUL, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  btnSecundario:{ background: '#F4F6FB', color: TEXTO, border: `1.5px solid ${CINZA_BORDA}`, borderRadius: 10, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  busca:       { border: `1.5px solid ${CINZA_BORDA}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: TEXTO, background: '#fff', outline: 'none', fontFamily: 'inherit' },
+  chips:       { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  chip:        { padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 },
+  chipCount:   { fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 10 },
+  tabela:      { background: '#fff', border: `1px solid ${CINZA_BORDA}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' },
+  tableHeader: { display: 'flex', alignItems: 'center', background: '#1E293B', padding: '0 8px', height: 40 },
+  hCol:        { width: 120, textAlign: 'center', fontSize: 10, fontWeight: 800, color: '#94A3B8', letterSpacing: '0.07em', textTransform: 'uppercase' as const },
+  row:         { display: 'flex', alignItems: 'center', borderBottom: `1px solid ${CINZA_BORDA}`, minHeight: 56 },
+  cellFoto:    { width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  thumb:       { width: 40, height: 40, borderRadius: 6, objectFit: 'cover' as const },
+  thumbPlaceholder:{ width: 40, height: 40, borderRadius: 6, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  prodNome:    { fontSize: 13, fontWeight: 700, color: TEXTO },
+  prodDesc:    { fontSize: 11, color: TEXTO_MEIO, marginTop: 2 },
+  cell:        { width: 120, textAlign: 'center' as const, fontSize: 12, padding: '4px 8px' },
+  catPill:     { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 },
+  btnAcao:     { background: 'none', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  overlay:     { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  modal:       { background: '#fff', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' as const },
+  modalTop:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitulo: { fontSize: 18, fontWeight: 800, color: TEXTO, margin: 0 },
+  fechar:      { background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: TEXTO_MEIO },
+  form:        { display: 'flex', flexDirection: 'column', gap: 14 },
+  grid2:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  campo:       { display: 'flex', flexDirection: 'column', gap: 4 },
+  label:       { fontSize: 12, fontWeight: 700, color: TEXTO_MEIO },
+  input:       { border: `1.5px solid ${CINZA_BORDA}`, borderRadius: 8, padding: '10px 12px', fontSize: 14, color: TEXTO, outline: 'none', fontFamily: 'inherit', background: '#fff' },
+  uploadLabel: { padding: '12px', border: `1.5px dashed ${CINZA_BORDA}`, borderRadius: 8, fontSize: 13, color: TEXTO_MEIO, cursor: 'pointer', textAlign: 'center' as const },
+  btnSalvar:   { background: AZUL, color: '#fff', border: 'none', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' },
 }

@@ -304,7 +304,7 @@ export default function Vitrine() {
                   <div style={{ ...s.catIconWrap, background: cat.cor + '15' }}
                     dangerouslySetInnerHTML={{ __html: cat.svg }} />
                   <span style={{ ...s.catNome, color: cat.cor }}>{cat.nome}</span>
-                  <span style={s.catQtd}>
+                  <span style={{ ...s.catQtd, background: cat.cor + '15', color: cat.cor }}>
                     {todos.filter(p => p.categoria === cat.slug).length} itens
                   </span>
                 </button>
@@ -475,7 +475,7 @@ const s: Record<string, React.CSSProperties> = {
   catCard:      { background: '#fff', borderRadius: 16, padding: '16px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, border: '1.5px solid', cursor: 'pointer', boxShadow: '0 2px 8px rgba(27,47,94,0.06)', transition: 'transform 0.15s', fontFamily: 'inherit' },
   catIconWrap:  { width: 64, height: 64, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 10 },
   catNome:      { fontSize: 12, fontWeight: 800, textAlign: 'center' as const },
-  catQtd:       { fontSize: 10, color: TEXTO_MEIO, fontWeight: 600 },
+  catQtd:       { fontSize: 10, fontWeight: 800, padding: '2px 10px', borderRadius: 20 },
   // Header categoria
   catHeader:    { padding: '16px', display: 'flex', alignItems: 'center', gap: 16 },
   btnVoltar:    { background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
