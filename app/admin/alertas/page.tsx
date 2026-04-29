@@ -4,182 +4,254 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, TEXTO, TEXTO_MEIO, CINZA_BORDA } from '@/lib/constants'
 
-const CORES_RAIO = [
-  '#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6',
-  '#EC4899','#06B6D4','#84CC16','#F97316','#6366F1',
-]
-
-export default function AdminAlertas() {
+export default function MapaEstrategico() {
   const [parceiros, setParceiros]       = useState<any[]>([])
   const [entregadores, setEntregadores] = useState<any[]>([])
-  const mapLojasRef  = useRef<HTMLDivElement>(null)
-  const mapEntRef    = useRef<HTMLDivElement>(null)
-  const mapLojasObj  = useRef<any>(null)
-  const mapEntObj    = useRef<any>(null)
-  const marcLojasRef = useRef<any[]>([])
-  const marcEntRef   = useRef<any[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [selecionado, setSelecionado]   = useState<any | null>(null)
+  const mapRef    = useRef<HTMLDivElement>(null)
+  const mapObj    = useRef<any>(null)
+  const marcadores = useRef<any[]>([])
 
   useEffect(() => {
     carregarDados()
-    carregarLeaflet()
-    const canal = supabase.channel('mapa-entregadores')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'entregadores' }, () => {
-        carregarEntregadores()
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(canal) }
+    iniciarMapa()
   }, [])
 
-  useEffect(() => { if (mapLojasObj.current) atualizarMarcadoresLojas() }, [parceiros])
-  useEffect(() => { if (mapEntObj.current)   atualizarMarcadoresEntregadores() }, [entregadores])
+  useEffect(() => {
+    if (mapObj.current) renderizarMarcadores()
+  }, [parceiros, entregadores])
 
   async function carregarDados() {
-    await Promise.all([carregarParceiros(), carregarEntregadores()])
+    setLoading(true)
+    const [{ data: parc }, { data: entr }] = await Promise.all([
+      supabase.from('parceiros').select('id, nome_fantasia, lat, lng, ativo, categorias').not('lat', 'is', null),
+      supabase.from('entregadores').select('id, nome, lat, lng, online').not('lat', 'is', null),
+    ])
+    setParceiros(parc ?? [])
+    setEntregadores(entr ?? [])
+    setLoading(false)
   }
 
-  async function carregarParceiros() {
-    const { data } = await supabase
-      .from('parceiros')
-      .select('id, nome_fantasia, endereco, numero, cidade, lat, lng')
-      .not('lat', 'is', null).not('lng', 'is', null)
-    setParceiros(data ?? [])
+  async function iniciarMapa() {
+    if (typeof window === 'undefined') return
+    const L = (await import('leaflet')).default
+    await import('leaflet/dist/leaflet.css' as any)
+
+    if (!mapRef.current || mapObj.current) return
+
+    const map = L.map(mapRef.current, {
+      center: [-20.7549, -51.7007],
+      zoom: 13,
+      zoomControl: true,
+    })
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      maxZoom: 19,
+    }).addTo(map)
+
+    mapObj.current = map
   }
 
-  async function carregarEntregadores() {
-    const { data } = await supabase
-      .from('entregadores')
-      .select('id, status, lat_atual, lng_atual, tipo_veiculo, perfis:usuario_id ( nome, telefone )')
-      .eq('status', 'online')
-      .not('lat_atual', 'is', null).not('lng_atual', 'is', null)
-    setEntregadores(data ?? [])
-  }
-
-  async function carregarLeaflet() {
-    if ((window as any).L) { initMapas((window as any).L); return }
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'
-    document.head.appendChild(link)
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
-    script.onload = () => initMapas((window as any).L)
-    document.head.appendChild(script)
-  }
-
-  function initMapas(L: any) {
-    if (mapLojasRef.current && !mapLojasObj.current) {
-      const m = L.map(mapLojasRef.current).setView([-20.768, -51.719], 13)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap', maxZoom: 19,
-      }).addTo(m)
-      mapLojasObj.current = m
-      setTimeout(() => { m.invalidateSize(); atualizarMarcadoresLojas() }, 300)
-    }
-    if (mapEntRef.current && !mapEntObj.current) {
-      const m = L.map(mapEntRef.current).setView([-20.768, -51.719], 13)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap', maxZoom: 19,
-      }).addTo(m)
-      mapEntObj.current = m
-      setTimeout(() => { m.invalidateSize(); atualizarMarcadoresEntregadores() }, 300)
-    }
-  }
-
-  function atualizarMarcadoresLojas() {
+  function renderizarMarcadores() {
+    if (!mapObj.current) return
     const L = (window as any).L
-    if (!L || !mapLojasObj.current) return
-    marcLojasRef.current.forEach(m => m.remove())
-    marcLojasRef.current = []
+    if (!L) return
 
-    parceiros.forEach((p, i) => {
+    // Limpar marcadores antigos
+    marcadores.current.forEach(m => m.remove())
+    marcadores.current = []
+
+    // Marcadores dos parceiros
+    parceiros.forEach(p => {
       if (!p.lat || !p.lng) return
-      const cor = CORES_RAIO[i % CORES_RAIO.length]
-      const raio = L.circle([p.lat, p.lng], {
-        radius: 6000, color: cor, fillColor: cor, fillOpacity: 0.08, weight: 2, dashArray: '6 4',
-      }).addTo(mapLojasObj.current)
-      const icone = L.divIcon({
-        html: `<div style="background:${cor};color:#fff;border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25)">📍 ${p.nome_fantasia}</div>`,
-        className: '', iconAnchor: [0, 0],
+      const cor = p.ativo ? '#22C55E' : '#94A3B8'
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          background:${cor};border:3px solid #fff;
+          border-radius:50%;width:18px;height:18px;
+          box-shadow:0 2px 8px rgba(0,0,0,0.3);
+          cursor:pointer;
+        "></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
       })
-      const m = L.marker([p.lat, p.lng], { icon: icone })
-        .addTo(mapLojasObj.current)
-        .bindPopup(`<b>${p.nome_fantasia}</b><br>${p.endereco}, ${p.numero}<br>${p.cidade}<br>Raio: 6km`)
-      marcLojasRef.current.push(raio, m)
+      const marker = L.marker([p.lat, p.lng], { icon })
+        .addTo(mapObj.current)
+        .on('click', () => setSelecionado({ tipo: 'parceiro', ...p }))
+      marcadores.current.push(marker)
     })
 
-    if (parceiros.length > 0 && parceiros[0].lat) {
-      mapLojasObj.current.setView([parceiros[0].lat, parceiros[0].lng], 13)
-    }
-  }
-
-  function atualizarMarcadoresEntregadores() {
-    const L = (window as any).L
-    if (!L || !mapEntObj.current) return
-    marcEntRef.current.forEach(m => m.remove())
-    marcEntRef.current = []
-
-    entregadores.forEach((e, i) => {
-      if (!e.lat_atual || !e.lng_atual) return
-      const cor = CORES_RAIO[i % CORES_RAIO.length]
-      const raio = L.circle([e.lat_atual, e.lng_atual], {
-        radius: 6000, color: cor, fillColor: cor, fillOpacity: 0.06, weight: 2, dashArray: '6 4',
-      }).addTo(mapEntObj.current)
-      const icone = L.divIcon({
-        html: `<div style="background:${AZUL};color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;border:3px solid ${cor};box-shadow:0 2px 8px rgba(0,0,0,0.3)">${e.tipo_veiculo === 'moto' ? '🏍️' : '⚡'}</div>`,
-        className: '', iconSize: [34, 34], iconAnchor: [17, 17],
+    // Marcadores dos entregadores
+    entregadores.forEach(e => {
+      if (!e.lat || !e.lng) return
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          background:${DOURADO};border:3px solid #fff;
+          border-radius:4px;width:18px;height:18px;
+          box-shadow:0 2px 8px rgba(0,0,0,0.3);
+          cursor:pointer;display:flex;align-items:center;
+          justify-content:center;font-size:10px;
+        ">🛵</div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
       })
-      const m = L.marker([e.lat_atual, e.lng_atual], { icon: icone })
-        .addTo(mapEntObj.current)
-        .bindPopup(`<b>${e.perfis?.nome ?? '—'}</b><br>${e.perfis?.telefone ?? ''}<br>🟢 Online`)
-      marcEntRef.current.push(raio, m)
+      const marker = L.marker([e.lat, e.lng], { icon })
+        .addTo(mapObj.current)
+        .on('click', () => setSelecionado({ tipo: 'entregador', ...e }))
+      marcadores.current.push(marker)
     })
-
-    if (entregadores.length > 0) {
-      mapEntObj.current.setView([entregadores[0].lat_atual, entregadores[0].lng_atual], 13)
-    }
   }
+
+  const parcAtivos   = parceiros.filter(p => p.ativo)
+  const entrOnline   = entregadores.filter(e => e.online)
 
   return (
-    <div style={s.wrap} className="anim-fadeIn">
-      <h1 style={s.titulo}>Mapa Estratégico</h1>
-
-      <div style={s.secao}>
-        <div style={s.secaoHeader}>
-          <span style={s.secaoTitulo}>🏪 Lojas cadastradas ({parceiros.length})</span>
-          <div style={s.legendaRaios}>
-            {parceiros.map((p, i) => (
-              <span key={p.id} style={{ ...s.legendaRaioItem, borderColor: CORES_RAIO[i % CORES_RAIO.length], color: CORES_RAIO[i % CORES_RAIO.length] }}>
-                {p.nome_fantasia}
-              </span>
-            ))}
-          </div>
+    <div style={s.wrap}>
+      {/* Cabeçalho */}
+      <div style={s.cabecalho}>
+        <div>
+          <h1 style={s.titulo}>Mapa Estratégico</h1>
+          <p style={s.sub}>Visão geral da operação em Três Lagoas</p>
         </div>
-        <div ref={mapLojasRef} style={s.mapa} />
+        <button onClick={carregarDados} style={s.btnAtualizar}>🔄 Atualizar</button>
       </div>
 
-      <div style={s.secao}>
-        <div style={s.secaoHeader}>
-          <span style={s.secaoTitulo}>🛵 Entregadores online ({entregadores.length})</span>
-          <span style={s.legendaInfo}>Atualiza em tempo real</span>
+      {/* Cards de resumo */}
+      <div style={s.cards}>
+        <div style={{ ...s.card, borderColor: VERDE }}>
+          <div style={s.cardNum}>{parcAtivos.length}</div>
+          <div style={s.cardLabel}>🏪 Parceiros online</div>
         </div>
-        <div ref={mapEntRef} style={s.mapa} />
-        {entregadores.length === 0 && (
-          <div style={s.vazio}>🛵 Nenhum entregador online com GPS ativo no momento.</div>
+        <div style={{ ...s.card, borderColor: '#94A3B8' }}>
+          <div style={{ ...s.cardNum, color: '#94A3B8' }}>{parceiros.length - parcAtivos.length}</div>
+          <div style={s.cardLabel}>🏪 Parceiros offline</div>
+        </div>
+        <div style={{ ...s.card, borderColor: DOURADO }}>
+          <div style={{ ...s.cardNum, color: DOURADO }}>{entrOnline.length}</div>
+          <div style={s.cardLabel}>🛵 Entregadores online</div>
+        </div>
+        <div style={{ ...s.card, borderColor: AZUL }}>
+          <div style={{ ...s.cardNum, color: AZUL }}>{entregadores.length}</div>
+          <div style={s.cardLabel}>🛵 Total entregadores</div>
+        </div>
+      </div>
+
+      {/* Legenda */}
+      <div style={s.legenda}>
+        <div style={s.legendaItem}><span style={{ ...s.legendaDot, background: VERDE }} /> Parceiro online</div>
+        <div style={s.legendaItem}><span style={{ ...s.legendaDot, background: '#94A3B8' }} /> Parceiro offline</div>
+        <div style={s.legendaItem}><span style={{ ...s.legendaDot, background: DOURADO, borderRadius: 3 }} /> Entregador</div>
+      </div>
+
+      {/* Mapa */}
+      <div style={s.mapaWrap}>
+        {loading && (
+          <div style={s.mapaLoading}>
+            <span className="anim-spin" style={s.spinner} />
+            <span style={{ color: TEXTO_MEIO, fontSize: 13 }}>Carregando mapa...</span>
+          </div>
         )}
+        <div ref={mapRef} style={s.mapa} />
+
+        {/* Popup info ao clicar no marcador */}
+        {selecionado && (
+          <div style={s.popup}>
+            <button onClick={() => setSelecionado(null)} style={s.popupFechar}>✕</button>
+            {selecionado.tipo === 'parceiro' ? (
+              <>
+                <div style={s.popupTipo}>🏪 Parceiro</div>
+                <div style={s.popupNome}>{selecionado.nome_fantasia}</div>
+                <div style={{ ...s.popupStatus, color: selecionado.ativo ? VERDE : '#94A3B8' }}>
+                  ● {selecionado.ativo ? 'Online' : 'Offline'}
+                </div>
+                {selecionado.categorias?.length > 0 && (
+                  <div style={s.popupCats}>
+                    {selecionado.categorias.join(' · ')}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div style={s.popupTipo}>🛵 Entregador</div>
+                <div style={s.popupNome}>{selecionado.nome}</div>
+                <div style={{ ...s.popupStatus, color: selecionado.online ? VERDE : '#94A3B8' }}>
+                  ● {selecionado.online ? 'Online' : 'Offline'}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Lista lateral */}
+      <div style={s.listas}>
+        <div style={s.listaBox}>
+          <div style={s.listaTitulo}>🏪 Parceiros ({parceiros.length})</div>
+          {parceiros.map(p => (
+            <div key={p.id} style={s.listaItem}
+              onClick={() => {
+                setSelecionado({ tipo: 'parceiro', ...p })
+                if (mapObj.current && p.lat && p.lng) mapObj.current.setView([p.lat, p.lng], 15)
+              }}>
+              <span style={{ ...s.listaStatus, background: p.ativo ? VERDE : '#94A3B8' }} />
+              <span style={s.listaLabel}>{p.nome_fantasia}</span>
+              <span style={{ fontSize: 10, color: TEXTO_MEIO }}>{p.ativo ? 'Online' : 'Offline'}</span>
+            </div>
+          ))}
+          {parceiros.length === 0 && <div style={s.vazio}>Nenhum parceiro cadastrado</div>}
+        </div>
+        <div style={s.listaBox}>
+          <div style={s.listaTitulo}>🛵 Entregadores ({entregadores.length})</div>
+          {entregadores.map(e => (
+            <div key={e.id} style={s.listaItem}
+              onClick={() => {
+                setSelecionado({ tipo: 'entregador', ...e })
+                if (mapObj.current && e.lat && e.lng) mapObj.current.setView([e.lat, e.lng], 15)
+              }}>
+              <span style={{ ...s.listaStatus, background: e.online ? DOURADO : '#94A3B8' }} />
+              <span style={s.listaLabel}>{e.nome}</span>
+              <span style={{ fontSize: 10, color: TEXTO_MEIO }}>{e.online ? 'Online' : 'Offline'}</span>
+            </div>
+          ))}
+          {entregadores.length === 0 && <div style={s.vazio}>Nenhum entregador cadastrado</div>}
+        </div>
       </div>
     </div>
   )
 }
 
 const s: Record<string, React.CSSProperties> = {
-  wrap:            { display: 'flex', flexDirection: 'column', gap: 24 },
-  titulo:          { fontSize: 22, fontWeight: 800, color: TEXTO, margin: 0 },
-  secao:           { display: 'flex', flexDirection: 'column', gap: 8 },
-  secaoHeader:     { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const },
-  secaoTitulo:     { fontSize: 15, fontWeight: 800, color: TEXTO },
-  legendaRaios:    { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
-  legendaRaioItem: { fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, border: '1.5px solid', background: '#fff' },
-  legendaInfo:     { fontSize: 12, color: TEXTO_MEIO },
-  mapa:            { width: '100%', height: 280, borderRadius: 14, overflow: 'hidden', border: `1.5px solid ${CINZA_BORDA}` },
-  vazio:           { textAlign: 'center' as const, padding: 16, color: TEXTO_MEIO, fontSize: 14 },
+  wrap:         { display: 'flex', flexDirection: 'column', gap: 16 },
+  cabecalho:    { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
+  titulo:       { fontSize: 22, fontWeight: 800, color: TEXTO, margin: 0 },
+  sub:          { fontSize: 13, color: TEXTO_MEIO, marginTop: 4 },
+  btnAtualizar: { background: '#F4F6FB', border: `1.5px solid ${CINZA_BORDA}`, borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', color: TEXTO },
+  cards:        { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 },
+  card:         { background: '#fff', borderRadius: 12, padding: '14px 16px', borderTop: '3px solid', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' },
+  cardNum:      { fontSize: 28, fontWeight: 900, color: VERDE, lineHeight: 1 },
+  cardLabel:    { fontSize: 12, color: TEXTO_MEIO, fontWeight: 600, marginTop: 4 },
+  legenda:      { display: 'flex', gap: 16, alignItems: 'center' },
+  legendaItem:  { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: TEXTO_MEIO, fontWeight: 600 },
+  legendaDot:   { width: 10, height: 10, borderRadius: '50%', display: 'inline-block' },
+  mapaWrap:     { position: 'relative', borderRadius: 14, overflow: 'hidden', border: `1px solid ${CINZA_BORDA}`, height: 420 },
+  mapaLoading:  { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#F4F6FB', zIndex: 10 },
+  spinner:      { width: 24, height: 24, borderRadius: '50%', border: `3px solid ${AZUL}30`, borderTopColor: AZUL, display: 'block' },
+  mapa:         { width: '100%', height: '100%' },
+  popup:        { position: 'absolute', top: 12, right: 12, background: '#fff', borderRadius: 12, padding: '14px 16px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 1000, minWidth: 180 },
+  popupFechar:  { position: 'absolute', top: 8, right: 8, background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: TEXTO_MEIO },
+  popupTipo:    { fontSize: 11, fontWeight: 700, color: TEXTO_MEIO, textTransform: 'uppercase' as const, letterSpacing: 1 },
+  popupNome:    { fontSize: 15, fontWeight: 800, color: TEXTO, marginTop: 4 },
+  popupStatus:  { fontSize: 12, fontWeight: 700, marginTop: 4 },
+  popupCats:    { fontSize: 11, color: TEXTO_MEIO, marginTop: 6, lineHeight: 1.5 },
+  listas:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  listaBox:     { background: '#fff', borderRadius: 12, border: `1px solid ${CINZA_BORDA}`, overflow: 'hidden' },
+  listaTitulo:  { fontSize: 13, fontWeight: 800, color: TEXTO, padding: '12px 16px', borderBottom: `1px solid ${CINZA_BORDA}`, background: '#F8FAFC' },
+  listaItem:    { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: `1px solid ${CINZA_BORDA}`, cursor: 'pointer' },
+  listaStatus:  { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
+  listaLabel:   { fontSize: 13, fontWeight: 600, color: TEXTO, flex: 1 },
+  vazio:        { padding: '20px 16px', fontSize: 13, color: TEXTO_MEIO, textAlign: 'center' as const },
 }

@@ -79,9 +79,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 style={{ ...s.navItem, ...(ativo ? s.navAtivo : {}) }}>
                 <span style={s.navIcone}>{item.icon}</span>
                 <span style={s.navLabel}>{item.label}</span>
-                {item.href === '/admin/alertas' && alertas > 0 && (
-                  <span style={s.badge} className="anim-blink">{alertas}</span>
-                )}
+                {/* badge alertas removido */}
               </button>
             )
           })}
@@ -101,7 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <button onClick={() => setSidebarAberta(v => !v)} style={s.menuBtn}>☰</button>
           <img src="/logo.png" alt="CompreFácil+" style={s.topLogo} />
           <div style={s.topRight}>
-            {alertas > 0 && <span style={s.topBadge} className="anim-blink">{alertas} 🔔</span>}
+            {/* badge alertas removido */}
           </div>
         </header>
 
