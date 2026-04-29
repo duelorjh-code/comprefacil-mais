@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse }        from 'next/server'
 import type { NextRequest }    from 'next/server'
 
-const PUBLICAS = ['/', '/login', '/cadastro', '/parceiro/primeiro-acesso', '/bloqueado']
+const PUBLICAS = ['/', '/login', '/cadastro', '/parceiro/primeiro-acesso', '/bloqueado', '/inauguracao']
 
 const ROTAS_ROLE: Record<string, string> = {
   '/admin':      'admin',
@@ -17,6 +17,10 @@ const ROTAS_ROLE: Record<string, string> = {
 const API_ADMIN_PREFIXO    = '/api/admin/'
 const API_ENTREGADOR_ACAO  = '/api/entregador/acao'
 const API_PARCEIRO_PREFIXO = '/api/parceiro/'
+
+// 08/05/2026 00:00 BRT (UTC-3)
+const DATA_INAUGURACAO = new Date('2026-05-08T03:00:00Z')
+const isAntesInauguracao = () => new Date() < DATA_INAUGURACAO
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -43,56 +47,33 @@ export async function middleware(request: NextRequest) {
 
   // ── Proteção das rotas de API /api/parceiro/* ────────────────
   if (pathname.startsWith(API_PARCEIRO_PREFIXO)) {
-    if (!session) {
-      return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
-    }
-    const { data: perfil } = await supabase
-      .from('perfis')
-      .select('role')
-      .eq('id', session.user.id)
-      .single()
-    if (!perfil || !['parceiro', 'admin'].includes(perfil.role)) {
+    if (!session) return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
+    const { data: perfil } = await supabase.from('perfis').select('role').eq('id', session.user.id).single()
+    if (!perfil || !['parceiro', 'admin'].includes(perfil.role))
       return NextResponse.json({ erro: 'Acesso negado.' }, { status: 403 })
-    }
     return response
   }
 
   // ── Proteção das rotas de API /api/admin/* ───────────────────
   if (pathname.startsWith(API_ADMIN_PREFIXO)) {
-    if (!session) {
-      return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
-    }
-    const { data: perfil } = await supabase
-      .from('perfis')
-      .select('role')
-      .eq('id', session.user.id)
-      .single()
-    if (!perfil || perfil.role !== 'admin') {
+    if (!session) return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
+    const { data: perfil } = await supabase.from('perfis').select('role').eq('id', session.user.id).single()
+    if (!perfil || perfil.role !== 'admin')
       return NextResponse.json({ erro: 'Acesso negado.' }, { status: 403 })
-    }
     return response
   }
 
   // ── Proteção da rota /api/entregador/acao ────────────────────
   if (pathname === API_ENTREGADOR_ACAO) {
-    if (!session) {
-      return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
-    }
-    const { data: perfil } = await supabase
-      .from('perfis')
-      .select('role')
-      .eq('id', session.user.id)
-      .single()
-    if (!perfil || perfil.role !== 'entregador') {
+    if (!session) return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
+    const { data: perfil } = await supabase.from('perfis').select('role').eq('id', session.user.id).single()
+    if (!perfil || perfil.role !== 'entregador')
       return NextResponse.json({ erro: 'Acesso negado.' }, { status: 403 })
-    }
     return response
   }
 
   // ── Demais rotas de API: RLS do Supabase protege ─────────────
-  if (pathname.startsWith('/api/')) {
-    return response
-  }
+  if (pathname.startsWith('/api/')) return response
 
   // ── Rotas de página: exigem sessão ───────────────────────────
   if (!session) {
@@ -112,6 +93,11 @@ export async function middleware(request: NextRequest) {
 
   if (perfil.bloqueado) {
     return NextResponse.redirect(new URL('/bloqueado', request.url))
+  }
+
+  // ── Bloqueio de inauguração: cliente e entregador → /inauguracao
+  if (isAntesInauguracao() && ['cliente', 'entregador'].includes(perfil.role)) {
+    return NextResponse.redirect(new URL('/inauguracao', request.url))
   }
 
   const roleEsperado = Object.entries(ROTAS_ROLE).find(([rota]) =>

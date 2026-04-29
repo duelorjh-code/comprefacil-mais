@@ -40,7 +40,11 @@ export default function LoginPage() {
       return
     }
 
-    router.replace(redirecionarPorRole(result.perfil!.role))
+    const role = result.perfil!.role
+    const DATA_INAUGURACAO = new Date('2026-05-08T03:00:00Z')
+    const bloqueado = new Date() < DATA_INAUGURACAO && ['cliente', 'entregador'].includes(role)
+    if (bloqueado) { router.replace('/inauguracao'); return }
+    router.replace(redirecionarPorRole(role))
   }
 
   return (
