@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 const admin = createClient(
@@ -7,20 +7,20 @@ const admin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const cidade = req.nextUrl.searchParams.get('cidade') ?? 'tl'
+  const suffix = cidade === 'b' ? '_b' : ''
   const { data, error } = await admin
-    .from('clientes')
+    .from(`perfis${suffix}`)
     .select(`
-      id, usuario_id, criado_em,
-      perfis:usuario_id ( id, nome, telefone, bloqueado, role ),
-      pedidos ( id, total, status, criado_em )
+id, nome, telefone, bloqueado, role, criado_em
     `)
     .order('criado_em', { ascending: false })
 
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 })
 
   // Filtra apenas perfis com role = 'cliente'
-  const filtrado = (data ?? []).filter((c: any) => c.perfis?.role === 'cliente')
+  const filtrado = (data ?? []).filter((c: any) => c.role === 'cliente')
 
   return NextResponse.json({ data: filtrado })
 }

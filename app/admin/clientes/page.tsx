@@ -3,23 +3,25 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, VERDE, VERMELHO, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
+import { useCidade } from '@/lib/cidade-context'
 
 export default function AdminClientes() {
+  const { cidade, suffix } = useCidade()
   const [clientes, setClientes] = useState<any[]>([])
   const [busca, setBusca]       = useState('')
   const [loading, setLoading]   = useState(true)
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar() }, [cidade])
 
   async function carregar() {
-    const res  = await fetch('/api/admin/clientes')
+    const res  = await fetch(`/api/admin/clientes?cidade=${cidade}`)
     const json = await res.json()
     setClientes(json.data ?? [])
     setLoading(false)
   }
 
   async function toggleBloqueio(usuarioId: string, bloqueado: boolean) {
-    await supabase.from('perfis').update({
+    await supabase.from(`perfis${suffix}`).update({
       bloqueado: !bloqueado,
       motivo_bloqueio: !bloqueado ? 'Bloqueado pelo Admin.' : null,
     }).eq('id', usuarioId)

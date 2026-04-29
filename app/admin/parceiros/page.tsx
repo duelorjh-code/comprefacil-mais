@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, VERDE, VERMELHO, DOURADO, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
+import { useCidade } from '@/lib/cidade-context'
 
 const CATEGORIAS_SISTEMA: Record<string, { nome: string; emoji: string }> = {
   bebidas:             { nome: 'Bebidas',               emoji: '🍺' },
@@ -43,6 +44,7 @@ function RamoPill({ slug }: { slug: string }) {
 }
 
 export default function AdminParceiros() {
+  const { cidade, suffix } = useCidade()
   const [aba, setAba]               = useState<'ativos'|'pendentes'>('ativos')
   const [parceiros, setParceiros]   = useState<any[]>([])
   const [pendentes, setPendentes]   = useState<any[]>([])
@@ -58,15 +60,17 @@ export default function AdminParceiros() {
   const [ativando, setAtivando]     = useState<string|null>(null)
   const [modalPend, setModalPend]   = useState<any|null>(null)
 
+  useEffect(() => { carregarDados() }, [cidade])
+
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
     setLoadingPag(true)
     const [{ data: parc }, { data: pend }] = await Promise.all([
-      supabase.from('parceiros')
+      supabase.from(`parceiros${suffix}`)
         .select('id, usuario_id, nome_fantasia, cidade, estado, telefone, ativo, saldo, pix_chave, horario_abertura, horario_fechamento, lat, lng, documento_url, categorias')
         .order('criado_em', { ascending: false }),
-      supabase.from('parceiros_pre_cadastro')
+      supabase.from(`parceiros_pre_cadastro${suffix}`)
         .select('*')
         .eq('status', 'pendente')
         .order('criado_em', { ascending: false }),
@@ -134,12 +138,12 @@ export default function AdminParceiros() {
       docUrl = u.publicUrl
     }
 
-    await supabase.from('perfis').upsert({
+    await supabase.from(`perfis${suffix}`).upsert({
       id: userId, telefone: tel,
       nome: form.nome_completo.trim(), role: 'parceiro', primeiro_acesso: true,
     })
 
-    const { error: errP } = await supabase.from('parceiros').insert({
+    const { error: errP } = await supabase.from(`parceiros${suffix}`).insert({
       usuario_id: userId,
       nome_completo: form.nome_completo.trim(),
       nome_fantasia: form.nome_fantasia.trim(),
@@ -187,12 +191,12 @@ export default function AdminParceiros() {
     const userId = apiData.data?.user?.id
     if (!userId) { setAtivando(null); return alert('Erro ao criar usuário.') }
 
-    await supabase.from('perfis').upsert({
+    await supabase.from(`perfis${suffix}`).upsert({
       id: userId, telefone: tel,
       nome: p.nome_completo.trim(), role: 'parceiro', primeiro_acesso: true,
     })
 
-    const { error: errP } = await supabase.from('parceiros').insert({
+    const { error: errP } = await supabase.from(`parceiros${suffix}`).insert({
       usuario_id:         userId,
       nome_completo:      p.nome_completo,
       nome_fantasia:      p.nome_fantasia || p.nome_completo,
@@ -220,7 +224,7 @@ export default function AdminParceiros() {
     if (errP) { setAtivando(null); return alert('Erro ao ativar: ' + errP.message) }
 
     // Marcar pré-cadastro como aprovado
-    await supabase.from('parceiros_pre_cadastro')
+    await supabase.from(`parceiros_pre_cadastro${suffix}`)
       .update({ status: 'aprovado', analisado_em: new Date().toISOString() })
       .eq('id', p.id)
 
@@ -253,7 +257,7 @@ export default function AdminParceiros() {
 
   async function rejeitarPendente(id: string) {
     if (!confirm('Rejeitar este cadastro?')) return
-    await supabase.from('parceiros_pre_cadastro')
+    await supabase.from(`parceiros_pre_cadastro${suffix}`)
       .update({ status: 'rejeitado', analisado_em: new Date().toISOString() })
       .eq('id', id)
     setModalPend(null)
@@ -261,7 +265,7 @@ export default function AdminParceiros() {
   }
 
   async function toggleAtivo(id: string, ativo: boolean) {
-    await supabase.from('parceiros').update({ ativo: !ativo }).eq('id', id)
+    await supabase.from(`parceiros${suffix}`).update({ ativo: !ativo }).eq('id', id)
     carregar()
   }
 

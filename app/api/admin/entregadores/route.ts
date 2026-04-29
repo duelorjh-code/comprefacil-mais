@@ -7,12 +7,14 @@ const admin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const cidade = req.nextUrl.searchParams.get('cidade') ?? 'tl'
+  const suffix = cidade === 'b' ? '_b' : ''
   const { data, error } = await admin
-    .from('entregadores')
+    .from(`entregadores${suffix}`)
     .select(`
       id, cpf, tipo_veiculo, status, validado, lat_atual, lng_atual, usuario_id, criado_em,
-      perfis:usuario_id ( id, nome, telefone, bloqueado, total_recusas, motivo_bloqueio )
+      perfis:usuario_id ( id, nome, telefone, bloqueado, motivo_bloqueio )
     `)
     .order('criado_em', { ascending: false })
 

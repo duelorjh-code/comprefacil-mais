@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, DOURADO, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA } from '@/lib/constants'
+import { useCidade } from '@/lib/cidade-context'
 
 const CATEGORIAS: { slug: string; nome: string; cor: string; svg: string }[] = [
   { slug: 'bebidas', nome: 'Bebidas', cor: '#2563EB',
@@ -32,6 +33,7 @@ const CATEGORIAS: { slug: string; nome: string; cor: string; svg: string }[] = [
 ]
 
 export default function AdminEstoque() {
+  const { cidade, suffix } = useCidade()
   const [parceiros, setParceiros]   = useState<any[]>([])
   const [parcId, setParcId]         = useState('')
   const [catAtiva, setCatAtiva]     = useState<string|null>(null)
@@ -44,11 +46,11 @@ export default function AdminEstoque() {
   const [salvando, setSalvando]     = useState(false)
   const [msg, setMsg]               = useState('')
 
-  useEffect(() => { carregarParceiros() }, [])
+  useEffect(() => { carregarParceiros() }, [cidade])
   useEffect(() => { if (parcId) carregarContadores() }, [parcId])
 
   async function carregarParceiros() {
-    const { data } = await supabase.from('parceiros').select('id, nome_fantasia, categorias').order('nome_fantasia')
+    const { data } = await supabase.from(`parceiros${suffix}`).select('id, nome_fantasia, categorias').order('nome_fantasia')
     setParceiros(data ?? [])
     if (data && data.length > 0) setParcId(data[0].id)
   }

@@ -3,17 +3,19 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AZUL, VERDE, VERMELHO, LARANJA, TEXTO, TEXTO_MEIO, CINZA_BORDA, formatBRL } from '@/lib/constants'
+import { useCidade } from '@/lib/cidade-context'
 
 export default function AdminEntregadores() {
+  const { cidade } = useCidade()
   const [lista, setLista]     = useState<any[]>([])
   const [busca, setBusca]     = useState('')
   const [filtro, setFiltro]   = useState('todos')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar() }, [cidade])
 
   async function carregar() {
-    const res  = await fetch('/api/admin/entregadores')
+    const res  = await fetch(`/api/admin/entregadores?cidade=${cidade}`)
     const json = await res.json()
     setLista(json.data ?? [])
     setLoading(false)
@@ -22,7 +24,7 @@ export default function AdminEntregadores() {
   async function toggleOnline(id: string, status: string) {
     await fetch('/api/admin/entregadores', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ acao: 'toggleOnline', id, status }),
+      body: JSON.stringify({ acao: 'toggleOnline', id, status, cidade }),
     })
     carregar()
   }
