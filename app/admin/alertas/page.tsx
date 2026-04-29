@@ -35,11 +35,26 @@ export default function MapaEstrategico() {
 
   async function iniciarMapa() {
     if (typeof window === 'undefined') return
-    const L = (await import('leaflet')).default
-    await import('leaflet/dist/leaflet.css' as any)
-
     if (!mapRef.current || mapObj.current) return
 
+    // Carrega Leaflet via CDN se ainda não estiver carregado
+    if (!(window as any).L) {
+      await new Promise<void>((resolve, reject) => {
+        // CSS
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'
+        document.head.appendChild(link)
+        // JS
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
+        script.onload = () => resolve()
+        script.onerror = () => reject()
+        document.head.appendChild(script)
+      })
+    }
+
+    const L = (window as any).L
     const map = L.map(mapRef.current, {
       center: [-20.7549, -51.7007],
       zoom: 13,
@@ -57,7 +72,7 @@ export default function MapaEstrategico() {
   function renderizarMarcadores() {
     if (!mapObj.current) return
     const L = (window as any).L
-    if (!L) return
+    if (!L) { await iniciarMapa(); return }
 
     // Limpar marcadores antigos
     marcadores.current.forEach(m => m.remove())
