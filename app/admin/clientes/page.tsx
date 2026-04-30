@@ -45,8 +45,8 @@ export default function AdminClientes() {
 
   const filtrados = clientes.filter(c => {
     if (!busca) return true
-    const nome = c.perfis?.nome?.toLowerCase() ?? ''
-    const tel  = c.perfis?.telefone ?? ''
+    const nome = c.nome?.toLowerCase() ?? ''
+    const tel  = c.telefone ?? ''
     return nome.includes(busca.toLowerCase()) || tel.includes(busca)
   })
 
@@ -74,16 +74,16 @@ export default function AdminClientes() {
             const entregues = pedidos.filter((p: any) => p.status === 'entregue')
             const totalGasto = entregues.reduce((a: number, p: any) => a + (p.total ?? 0), 0)
             const ultimoPed  = pedidos.sort((a: any, b: any) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())[0]
-            const bloqueado  = c.perfis?.bloqueado ?? false
-            const inicial    = (c.perfis?.nome ?? '?')[0].toUpperCase()
+            const bloqueado  = c.bloqueado ?? false
+            const inicial    = (c.nome ?? '?')[0].toUpperCase()
 
             return (
               <div key={c.id} style={{ ...s.card, border: bloqueado ? `1.5px solid #EF4444` : `1.5px solid ${CINZA_BORDA}` }}>
                 <div style={s.cardTop}>
                   <div style={s.avatar}>{inicial}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={s.cardNome}>{c.perfis?.nome ?? '—'}</div>
-                    <div style={s.cardTel}>{c.perfis?.telefone ?? '—'}</div>
+                    <div style={s.cardNome}>{c.nome ?? '—'}</div>
+                    <div style={s.cardTel}>{c.telefone ?? '—'}</div>
                   </div>
                   {bloqueado && (
                     <span style={{ ...s.pill, background: '#FEE2E2', color: '#991B1B' }}>🚫 Bloqueado</span>
@@ -123,11 +123,11 @@ export default function AdminClientes() {
                 </div>
 
                 <div style={s.acoes}>
-                  <button onClick={() => resetarSenha(c.perfis?.telefone)}
+                  <button onClick={() => resetarSenha(c.telefone)}
                     style={{ ...s.btn, background: '#EEF2FF', color: AZUL }}>
                     🔑 Resetar senha
                   </button>
-                  <button onClick={() => toggleBloqueio(c.usuario_id ?? c.perfis?.id, bloqueado)}
+                  <button onClick={() => toggleBloqueio(c.id ?? c.perfis?.id, bloqueado)}
                     style={{ ...s.btn, background: bloqueado ? '#22C55E20' : '#EF444420', color: bloqueado ? VERDE : VERMELHO }}>
                     {bloqueado ? '✅ Desbloquear' : '🚫 Bloquear'}
                   </button>
