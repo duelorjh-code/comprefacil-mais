@@ -66,8 +66,7 @@ export default function ParceiroLayout({ children }: { children: React.ReactNode
         .eq('usuario_id', user.id)
         .single()
       if (p) { setLoja(p.nome_fantasia); setSaldo(p.saldo ?? 0); setOnline(p.ativo ?? false); setParcId(p.id ?? '') }
-      const { data: { user: usuario } } = await supabase.auth.getUser()
-      if (usuario) setMeuId(usuario.id)
+      if (user) setMeuId(user.id)
       // Buscar admin da cidade do parceiro
       const { data: adm } = await supabase.from('perfis').select('id').eq('role', 'admin').single()
       if (adm) setAdminId(adm.id)
