@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { redirecionarPorRole } from '@/lib/auth'
 
-const DATA_INAUGURACAO = new Date('2026-05-08T03:00:00Z')
+const DATA_INAUGURACAO = new Date('2026-05-15T03:00:00Z')
 
 export default function HomePage() {
   const router   = useRouter()
@@ -72,7 +72,7 @@ export default function HomePage() {
             <span style={s.dot} />
             <span style={s.bannerLabel}>INAUGURAÇÃO · TRÊS LAGOAS</span>
           </div>
-          <p style={s.bannerData}>🎉 08 de Maio de 2026</p>
+          <p style={s.bannerData}>🎉 15 de Maio de 2026</p>
           <p style={s.bannerSub}>
             Cadastre-se agora e seja um dos primeiros a usar!
           </p>

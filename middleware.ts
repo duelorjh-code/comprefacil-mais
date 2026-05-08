@@ -18,8 +18,8 @@ const API_ADMIN_PREFIXO    = '/api/admin/'
 const API_ENTREGADOR_ACAO  = '/api/entregador/acao'
 const API_PARCEIRO_PREFIXO = '/api/parceiro/'
 
-// 08/05/2026 00:00 BRT (UTC-3)
-const DATA_INAUGURACAO = new Date('2026-05-08T03:00:00Z')
+// 15/05/2026 00:00 BRT (UTC-3)
+const DATA_INAUGURACAO = new Date('2026-05-15T03:00:00Z')
 const isAntesInauguracao = () => new Date() < DATA_INAUGURACAO
 
 export async function middleware(request: NextRequest) {

@@ -5,7 +5,7 @@ import { AZUL, DOURADO } from '@/lib/constants'
 
 interface TimeLeft { days: number; hours: number; minutes: number; seconds: number }
 
-const DATA_INAUGURACAO = new Date('2026-05-08T03:00:00Z')
+const DATA_INAUGURACAO = new Date('2026-05-15T03:00:00Z')
 
 function calcularTempo(): TimeLeft {
   const diff = DATA_INAUGURACAO.getTime() - Date.now()
@@ -95,7 +95,7 @@ export default function PaginaInauguracao() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={DOURADO} strokeWidth="2.5">
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
           </svg>
-          Três Lagoas, MS — 08 de Maio de 2026
+          Três Lagoas, MS — 15 de Maio de 2026
         </div>
 
         <div style={s.bens}>
